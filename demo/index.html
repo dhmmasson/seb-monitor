@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SEB Monitor - Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { color: #333; margin-bottom: 20px; }
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .card h2 { color: #555; margin-bottom: 15px; font-size: 18px; }
+    .status { padding: 10px; border-radius: 4px; margin-bottom: 10px; }
+    .status.connected { background: #d4edda; color: #155724; }
+    .status.disconnected { background: #f8d7da; color: #721c24; }
+    .status.info { background: #d1ecf1; color: #0c5460; }
+    textarea { width: 100%; height: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 14px; resize: vertical; }
+    .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+    button { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    button.primary { background: #007bff; color: white; }
+    button.primary:hover { background: #0056b3; }
+    button.danger { background: #dc3545; color: white; }
+    button.danger:hover { background: #c82333; }
+    button.secondary { background: #6c757d; color: white; }
+    button.secondary:hover { background: #545b62; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .stat { background: #f8f9fa; padding: 15px; border-radius: 4px; text-align: center; }
+    .stat .value { font-size: 24px; font-weight: bold; color: #007bff; }
+    .stat .label { font-size: 12px; color: #666; margin-top: 5px; }
+    .log { max-height: 300px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+    .log .entry { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #333; }
+    .log .timestamp { color: #6a9955; }
+    .log .type { color: #569cd6; font-weight: bold; }
+    .log .data { color: #ce9178; margin-top: 5px; }
+    #exam-area { border: 2px dashed #ddd; padding: 20px; margin: 20px 0; border-radius: 8px; background: #fafafa; }
+    #exam-area h3 { margin-bottom: 10px; color: #555; }
+    #answer-field { width: 100%; height: 150px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <!-- Hidden Moodle elements (simulated) -->
+  <p id="stuffs" style="display:none;">
+    <span id="theuser">Demo Student</span>
+    <span id="themodule">CS101</span>
+    <span id="theexam">https://moodle.example.com/exam/123</span>
+  </p>
+
+  <div class="container">
+    <h1>🎓 SEB Monitor - Live Demo</h1>
+
+    <!-- Status Card -->
+    <div class="card">
+      <h2>📊 Status</h2>
+      <div id="status" class="status disconnected">Not connected</div>
+      <div class="stats">
+        <div class="stat">
+          <div class="value" id="stat-heartbeats">0</div>
+          <div class="label">Heartbeats Sent</div>
+        </div>
+        <div class="stat">
+          <div class="value" id="stat-events">0</div>
+          <div class="label">Events Collected</div>
+        </div>
+        <div class="stat">
+          <div class="value" id="stat-copies">0</div>
+          <div class="label">Copies</div>
+        </div>
+        <div class="stat">
+          <div class="value" id="stat-pastes">0</div>
+          <div class="label">Pastes</div>
+        </div>
+        <div class="stat">
+          <div class="value" id="stat-focus">100%</div>
+          <div class="label">Focus Ratio</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls Card -->
+    <div class="card">
+      <h2>🎮 Controls</h2>
+      <div class="controls">
+        <button id="btn-start" class="primary" onclick="startMonitoring()">▶ Start Monitoring</button>
+        <button id="btn-stop" class="danger" onclick="stopMonitoring()" disabled>⏹ Stop Monitoring</button>
+        <button id="btn-heartbeat" class="secondary" onclick="sendHeartbeat()" disabled>💓 Send Heartbeat Now</button>
+        <button id="btn-clear" class="secondary" onclick="clearLog()">🗑 Clear Log</button>
+      </div>
+      <div>
+        <label for="server-url">Server URL:</label>
+        <input type="text" id="server-url" value="http://localhost:8000" style="width:300px; padding:8px; border:1px solid #ddd; border-radius:4px;">
+      </div>
+    </div>
+
+    <!-- Exam Area (simulated) -->
+    <div class="card">
+      <h2>📝 Exam Area (Simulated)</h2>
+      <div id="exam-area">
+        <h3>Question 1: Explain the concept of recursion.</h3>
+        <textarea id="answer-field" placeholder="Type your answer here... Try copying and pasting text to see events captured!"></textarea>
+      </div>
+      <p style="color:#666; font-size:14px; margin-top:10px;">
+        💡 <strong>Try this:</strong> Type some text, then copy/paste from another source. 
+        Watch the events appear in the log below!
+      </p>
+    </div>
+
+    <!-- Event Log Card -->
+    <div class="card">
+      <h2>📋 Event Log</h2>
+      <div id="log" class="log">
+        <div class="entry">
+          <span class="timestamp">[System]</span> 
+          <span class="type">Ready</span>
+          <div class="data">Click "Start Monitoring" to begin collecting events.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Client Library (inline for demo) =====
+    
+    // SHA-256 hashing
+    async function sha256(message) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(message);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+      const hashArray = new Uint8Array(hashBuffer);
+      return Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // State
+    let monitoring = false;
+    let heartbeatInterval = null;
+    let heartbeatCount = 0;
+    let eventCount = 0;
+    let copyCount = 0;
+    let pasteCount = 0;
+    let events = [];
+    let focusedTimeMs = 0;
+    let unfocusedTimeMs = 0;
+    let blurCount = 0;
+    let lastFocusTime = Date.now();
+    let isFocused = true;
+    let typedChars = 0;
+    let pastedChars = 0;
+    let deletedChars = 0;
+    let currentLength = 0;
+    let keyDownCount = 0;
+    let ctrlCount = 0;
+    let altCount = 0;
+    let shiftCount = 0;
+    let lastInputWasPaste = false;
+
+    // DOM elements
+    const userEl = document.getElementById("theuser");
+    const moduleEl = document.getElementById("themodule");
+    const examEl = document.getElementById("theexam");
+    const answerField = document.getElementById("answer-field");
+
+    // Log function
+    function addLog(type, message, data = null) {
+      const log = document.getElementById("log");
+      const entry = document.createElement("div");
+      entry.className = "entry";
+      
+      const timestamp = new Date().toLocaleTimeString();
+      let html = `<span class="timestamp">[${timestamp}</span>] <span class="type">${type}</span>`;
+      if (message) html += ` - ${message}`;
+      if (data) html += `<div class="data">${JSON.stringify(data, null, 2)}</div>`;
+      
+      entry.innerHTML = html;
+      log.insertBefore(entry, log.firstChild);
+      
+      // Keep only last 100 entries
+      while (log.children.length > 100) {
+        log.removeChild(log.lastChild);
+      }
+    }
+
+    // Update stats display
+    function updateStats() {
+      document.getElementById("stat-heartbeats").textContent = heartbeatCount;
+      document.getElementById("stat-events").textContent = eventCount;
+      document.getElementById("stat-copies").textContent = copyCount;
+      document.getElementById("stat-pastes").textContent = pasteCount;
+      
+      const total = focusedTimeMs + unfocusedTimeMs;
+      const ratio = total > 0 ? Math.round((focusedTimeMs / total) * 100) : 100;
+      document.getElementById("stat-focus").textContent = ratio + "%";
+    }
+
+    // Track focus/blur
+    function handleFocus() {
+      if (!isFocused) {
+        const now = Date.now();
+        unfocusedTimeMs += now - lastFocusTime;
+        isFocused = true;
+        lastFocusTime = now;
+        addLog("FOCUS", "Page gained focus");
+        events.push({ type: "focus", timestamp: now });
+        eventCount++;
+        updateStats();
+      }
+    }
+
+    function handleBlur() {
+      if (isFocused) {
+        const now = Date.now();
+        focusedTimeMs += now - lastFocusTime;
+        isFocused = false;
+        blurCount++;
+        lastFocusTime = now;
+        addLog("BLUR", "Page lost focus");
+        events.push({ type: "blur", timestamp: now });
+        eventCount++;
+        updateStats();
+      }
+    }
+
+    // Track copy
+    async function handleCopy(e) {
+      const selection = window.getSelection().toString();
+      if (selection) {
+        const hash = await sha256(selection);
+        copyCount++;
+        const event = {
+          type: "copy",
+          timestamp: Date.now(),
+          hash: hash,
+          length: selection.length
+        };
+        events.push(event);
+        eventCount++;
+        addLog("COPY", `Hash: ${hash.substring(0, 16)}... (${selection.length} chars)`);
+        updateStats();
+      }
+    }
+
+    // Track paste
+    async function handlePaste(e) {
+      const pastedText = e.clipboardData.getData('text');
+      if (pastedText) {
+        const hash = await sha256(pastedText);
+        pasteCount++;
+        lastInputWasPaste = true;
+        
+        const event = {
+          type: "paste",
+          timestamp: Date.now(),
+          hash: hash,
+          length: pastedText.length,
+          matchedCopyHash: null // Would need to match against recent copies
+        };
+        events.push(event);
+        eventCount++;
+        
+        addLog("PASTE", `Hash: ${hash.substring(0, 16)}... (${pastedText.length} chars)`, { content: pastedText.substring(0, 100) + (pastedText.length > 100 ? "..." : "") });
+        
+        // Send paste content to server immediately
+        sendPasteContent(hash, pastedText);
+        updateStats();
+      }
+    }
+
+    // Track input
+    function handleInput(e) {
+      const newLength = answerField.value.length;
+      const delta = newLength - currentLength;
+      
+      if (delta > 0) {
+        if (lastInputWasPaste) {
+          pastedChars += delta;
+          lastInputWasPaste = false;
+        } else {
+          typedChars += delta;
+        }
+      } else if (delta < 0) {
+        deletedChars += Math.abs(delta);
+      }
+      
+      currentLength = newLength;
+    }
+
+    // Track keydown
+    function handleKeydown(e) {
+      keyDownCount++;
+      if (e.ctrlKey) ctrlCount++;
+      if (e.altKey) altCount++;
+      if (e.shiftKey) shiftCount++;
+    }
+
+    // Send paste content to server
+    async function sendPasteContent(hash, content) {
+      const serverUrl = document.getElementById("server-url").value;
+      const payload = {
+        hash: hash,
+        content: content,
+        length: content.length,
+        sessionId: "demo-session",
+        examId: examEl.textContent,
+        timestamp: Date.now()
+      };
+      
+      try {
+        const response = await fetch(`${serverUrl}/api/paste`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        
+        if (response.ok) {
+          addLog("SENT", "Paste content sent to server");
+        } else {
+          addLog("ERROR", `Failed to send paste: ${response.status}`);
+        }
+      } catch (error) {
+        addLog("ERROR", `Failed to send paste: ${error.message}`);
+      }
+    }
+
+    // Build and send heartbeat
+    async function sendHeartbeat() {
+      // Update focus time
+      if (isFocused) {
+        const now = Date.now();
+        focusedTimeMs += now - lastFocusTime;
+        lastFocusTime = now;
+      }
+
+      const serverUrl = document.getElementById("server-url").value;
+      const payload = {
+        studentId: userEl.textContent,
+        examId: examEl.textContent,
+        questionId: "default",
+        timestamp: Date.now(),
+        focus: {
+          focusedTimeMs: focusedTimeMs,
+          unfocusedTimeMs: unfocusedTimeMs,
+          blurCount: blurCount
+        },
+        input: {
+          typedChars: typedChars,
+          pastedChars: pastedChars,
+          deletedChars: deletedChars,
+          currentLength: currentLength
+        },
+        keys: {
+          keyDownCount: keyDownCount,
+          ctrlCount: ctrlCount,
+          altCount: altCount,
+          shiftCount: shiftCount
+        },
+        copyCount: copyCount,
+        pasteCount: pasteCount,
+        events: events
+      };
+
+      try {
+        const response = await fetch(`${serverUrl}/api/heartbeat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          heartbeatCount++;
+          addLog("HEARTBEAT", `Sent successfully (sessionId: ${result.sessionId})`, {
+            events: events.length,
+            focus: `${Math.round(focusedTimeMs / (focusedTimeMs + unfocusedTimeMs) * 100)}%`,
+            input: `${typedChars} typed, ${pastedChars} pasted, ${deletedChars} deleted`
+          });
+          
+          // Reset after successful send
+          events = [];
+          focusedTimeMs = 0;
+          unfocusedTimeMs = 0;
+          blurCount = 0;
+          typedChars = 0;
+          pastedChars = 0;
+          deletedChars = 0;
+          keyDownCount = 0;
+          ctrlCount = 0;
+          altCount = 0;
+          shiftCount = 0;
+          
+          updateStats();
+        } else {
+          addLog("ERROR", `Heartbeat failed: ${response.status}`);
+        }
+      } catch (error) {
+        addLog("ERROR", `Heartbeat failed: ${error.message}`);
+      }
+    }
+
+    // Start monitoring
+    function startMonitoring() {
+      if (monitoring) return;
+      
+      monitoring = true;
+      document.getElementById("btn-start").disabled = true;
+      document.getElementById("btn-stop").disabled = false;
+      document.getElementById("btn-heartbeat").disabled = false;
+      document.getElementById("status").className = "status connected";
+      document.getElementById("status").textContent = "🟢 Monitoring active";
+      
+      // Attach event listeners
+      window.addEventListener("focus", handleFocus);
+      window.addEventListener("blur", handleBlur);
+      document.addEventListener("copy", handleCopy);
+      document.addEventListener("paste", handlePaste);
+      answerField.addEventListener("input", handleInput);
+      answerField.addEventListener("keydown", handleKeydown);
+      
+      // Start heartbeat timer (every 10 seconds for demo, normally 60s)
+      heartbeatInterval = setInterval(sendHeartbeat, 10000);
+      
+      addLog("SYSTEM", "Monitoring started", {
+        studentId: userEl.textContent,
+        examId: examEl.textContent,
+        heartbeatInterval: "10s (demo mode)"
+      });
+    }
+
+    // Stop monitoring
+    function stopMonitoring() {
+      if (!monitoring) return;
+      
+      monitoring = false;
+      document.getElementById("btn-start").disabled = false;
+      document.getElementById("btn-stop").disabled = true;
+      document.getElementById("btn-heartbeat").disabled = true;
+      document.getElementById("status").className = "status disconnected";
+      document.getElementById("status").textContent = "🔴 Monitoring stopped";
+      
+      // Detach event listeners
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("blur", handleBlur);
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("paste", handlePaste);
+      answerField.removeEventListener("input", handleInput);
+      answerField.removeEventListener("keydown", handleKeydown);
+      
+      // Stop heartbeat timer
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
+      
+      addLog("SYSTEM", "Monitoring stopped");
+    }
+
+    // Clear log
+    function clearLog() {
+      document.getElementById("log").innerHTML = "";
+      addLog("SYSTEM", "Log cleared");
+    }
+
+    // Initial log
+    addLog("SYSTEM", "Demo loaded", {
+      studentId: userEl.textContent,
+      examId: examEl.textContent,
+      serverUrl: document.getElementById("server-url").value
+    });
+  </script>
+</body>
+</html>
