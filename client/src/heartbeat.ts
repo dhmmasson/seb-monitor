@@ -34,14 +34,31 @@ export interface HeartbeatBuilder {
  * @returns HeartbeatBuilder instance
  */
 export function createHeartbeatBuilder(
-  _studentId: string,
-  _examId: string,
-  _questionId: string,
-  _focus: FocusAccumulator,
-  _input: InputStats,
-  _keys: KeyStats,
-  _collector: Collector,
+  studentId: string,
+  examId: string,
+  questionId: string,
+  focus: FocusAccumulator,
+  input: InputStats,
+  keys: KeyStats,
+  collector: Collector,
 ): HeartbeatBuilder {
-  // TODO: Implement
-  throw new Error("Not implemented");
+  return {
+    build(): HeartbeatPayload {
+      return {
+        studentId,
+        examId,
+        questionId,
+        timestamp: Date.now(),
+        focus: { ...focus },
+        input: { ...input },
+        keys: { ...keys },
+        copyCount: collector.getCopyCount(),
+        pasteCount: collector.getPasteCount(),
+        events: collector.getEvents(),
+      };
+    },
+    reset(): void {
+      collector.clearEvents();
+    },
+  };
 }
