@@ -40,12 +40,14 @@
   </style>
 </head>
 <body>
-  <!-- Hidden Moodle elements (simulated) -->
-  <p id="stuffs" style="display:none;">
-    <span id="theuser">Demo Student</span>
-    <span id="themodule">CS101</span>
-    <span id="theexam">https://moodle.example.com/exam/123</span>
-  </p>
+  <!-- SEB Monitor configuration (in production, this would be the external script tag) -->
+  <!-- Moodle would inject: data-student-id="{fullname}" data-exam-id="{thisurl}" -->
+  <script id="seb-monitor-config"
+    data-student-id="Demo Student"
+    data-module-id="CS101"
+    data-exam-id="https://moodle.example.com/exam/123"
+    data-server-url="http://localhost:8000">
+  </script>
 
   <div class="container">
     <h1>🎓 SEB Monitor - Live Demo</h1>
@@ -155,10 +157,12 @@
     let shiftCount = 0;
     let lastInputWasPaste = false;
 
-    // DOM elements
-    const userEl = document.getElementById("theuser");
-    const moduleEl = document.getElementById("themodule");
-    const examEl = document.getElementById("theexam");
+    // Read config from script data-attributes (same pattern as seb-monitor.js)
+    const configScript = document.getElementById("seb-monitor-config");
+    const studentId = configScript.dataset.studentId;
+    const moduleId = configScript.dataset.moduleId;
+    const examId = configScript.dataset.examId;
+    const serverUrlDefault = configScript.dataset.serverUrl;
     const answerField = document.getElementById("answer-field");
 
     // Log function
@@ -421,8 +425,8 @@
       heartbeatInterval = setInterval(sendHeartbeat, 10000);
       
       addLog("SYSTEM", "Monitoring started", {
-        studentId: userEl.textContent,
-        examId: examEl.textContent,
+        studentId: studentId,
+        examId: examId,
         heartbeatInterval: "10s (demo mode)"
       });
     }
@@ -463,8 +467,8 @@
 
     // Initial log
     addLog("SYSTEM", "Demo loaded", {
-      studentId: userEl.textContent,
-      examId: examEl.textContent,
+      studentId: studentId,
+      examId: examId,
       serverUrl: document.getElementById("server-url").value
     });
   </script>

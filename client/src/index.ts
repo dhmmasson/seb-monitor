@@ -1,17 +1,28 @@
 /**
  * IIFE entry point for the SEB monitoring library.
- * This is the main module that initializes and starts the monitoring system.
+ * Reads all configuration from `data-*` attributes on the <script> tag.
+ *
+ * Usage in Moodle:
+ * <script src="server/seb-monitor.js"
+ *   data-student-id="{fullname}"
+ *   data-module-id="{module}"
+ *   data-exam-id="{thisurl}"
+ *   data-server-url="https://monitor.example.com"
+ *   data-question-id="q3"
+ * ></script>
  *
  * @module index
  */
 
 /** Result of initialization */
 export interface InitResult {
-  /** Student ID extracted from DOM */
+  /** Student ID from data-student-id */
   studentId: string;
-  /** Exam ID extracted from DOM */
+  /** Exam ID from data-exam-id */
   examId: string;
-  /** Question ID (default: "default") */
+  /** Server URL from data-server-url */
+  serverUrl: string;
+  /** Question ID from data-question-id or URL params */
   questionId: string;
   /** Start the heartbeat timer */
   start(): void;
@@ -19,14 +30,11 @@ export interface InitResult {
   stop(): void;
 }
 
-/** Get element by ID function type for dependency injection */
-export type GetElementByIdFn = (id: string) => HTMLElement | null;
-
 /**
- * Resolve the question ID from the page context.
- * Tries multiple sources in order:
- * 1. data-question-id attribute on the <script> tag that loaded this library
- * 2. "slot" query parameter (Moodle quiz URLs: /mod/quiz/attempt.php?slot=3)
+ * Resolve the question ID from the script tag or page URL.
+ * Priority:
+ * 1. data-question-id attribute on the <script> tag
+ * 2. "slot" query parameter (Moodle quiz URLs)
  * 3. "questionId" query parameter (generic)
  * 4. Falls back to "default"
  */
@@ -56,56 +64,59 @@ export function resolveQuestionId(
 }
 
 /**
- * Initialize the monitoring system.
- * Reads student/exam IDs from DOM elements and sets up the heartbeat system.
+ * Read a required data attribute from the script element.
+ * Throws if the attribute is missing or empty.
+ */
+function requireAttr(
+  script: HTMLScriptElement,
+  camelName: string,
+): string {
+  const value = script.dataset[camelName];
+  if (!value) {
+    // Convert camelCase to kebab-case for the error message
+    const kebab = camelName.replace(/([A-Z])/g, "-$1").toLowerCase();
+    throw new Error(`Missing required attribute on script tag: data-${kebab}`);
+  }
+  return value;
+}
+
+/**
+ * Initialize the monitoring system from a <script> tag's data attributes.
  *
- * @param serverUrl - URL of the monitoring server
- * @param getElementById - Function to get DOM elements (default: document.getElementById)
+ * @param scriptElement - The <script> element (auto-discovered if not provided)
+ * @param documentRef - Document reference for auto-discovery (default: global document)
  * @returns InitResult with start/stop methods
- * @throws Error if required DOM elements are not found
+ * @throws Error if required data attributes are missing
  */
 export function initialize(
-  _serverUrl: string,
-  getElementById: GetElementByIdFn = document.getElementById.bind(document),
+  scriptElement?: HTMLScriptElement,
+  documentRef?: { querySelector: (s: string) => Element | null },
 ): InitResult {
-  // Read student ID from DOM
-  const userElement = getElementById("theuser");
-  if (!userElement) {
-    throw new Error("Required DOM element not found: theuser");
-  }
-  const studentId = userElement.textContent ?? "";
+  // Find the script element
+  const doc = documentRef ?? (typeof document !== "undefined" ? document : null);
+  const script = scriptElement ?? doc?.querySelector("script[data-student-id]") as HTMLScriptElement | null;
 
-  // Read module ID from DOM (not used in current implementation)
-  const moduleElement = getElementById("themodule");
-  if (!moduleElement) {
-    throw new Error("Required DOM element not found: themodule");
+  if (!script) {
+    throw new Error("Could not find seb-monitor script tag with data-student-id attribute");
   }
 
-  // Read exam ID from DOM
-  const examElement = getElementById("theexam");
-  if (!examElement) {
-    throw new Error("Required DOM element not found: theexam");
-  }
-  const examId = examElement.textContent ?? "";
+  // Read required attributes
+  const studentId = requireAttr(script, "studentId");
+  const examId = requireAttr(script, "examId");
+  const serverUrl = requireAttr(script, "serverUrl");
 
-  // Read question ID with fallback chain:
-  // 1. data-question-id attribute on the <script> tag
-  // 2. "slot" query parameter from Moodle quiz URLs
-  //    (e.g., /mod/quiz/attempt.php?attempt=123&slot=3)
-  // 3. "questionId" query parameter (generic)
-  // 4. Default: "default"
-  const questionId = resolveQuestionId();
+  // Read optional questionId (falls back to URL params or "default")
+  const questionId = script.dataset.questionId ?? resolveQuestionId();
 
   return {
     studentId,
     examId,
+    serverUrl,
     questionId,
-    /** Start the heartbeat timer and event collection */
     start(): void {
       // TODO: Initialize accumulators, collector, heartbeat builder, sender
       // TODO: Start heartbeat timer
     },
-    /** Stop the heartbeat timer and event collection */
     stop(): void {
       // TODO: Clear heartbeat timer
     },
