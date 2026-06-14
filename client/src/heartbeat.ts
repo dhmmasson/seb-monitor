@@ -43,12 +43,17 @@ export function createHeartbeatBuilder(
   collector: Collector,
 ): HeartbeatBuilder {
   return {
+    /**
+     * Build a heartbeat payload from current accumulator and collector state.
+     * Uses spread operators to create shallow copies of accumulators.
+     */
     build(): HeartbeatPayload {
       return {
         studentId,
         examId,
         questionId,
         timestamp: Date.now(),
+        // Create copies to prevent external mutation
         focus: { ...focus },
         input: { ...input },
         keys: { ...keys },
@@ -57,6 +62,11 @@ export function createHeartbeatBuilder(
         events: collector.getEvents(),
       };
     },
+
+    /**
+     * Reset state after successful heartbeat send.
+     * Clears the event buffer in the collector.
+     */
     reset(): void {
       collector.clearEvents();
     },
