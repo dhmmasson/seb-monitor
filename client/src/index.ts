@@ -33,8 +33,40 @@ export type GetElementByIdFn = (id: string) => HTMLElement | null;
  */
 export function initialize(
   _serverUrl: string,
-  _getElementById: GetElementByIdFn = document.getElementById.bind(document),
+  getElementById: GetElementByIdFn = document.getElementById.bind(document),
 ): InitResult {
-  // TODO: Implement
-  throw new Error("Not implemented");
+  // Read student ID from DOM
+  const userElement = getElementById("theuser");
+  if (!userElement) {
+    throw new Error("Required DOM element not found: theuser");
+  }
+  const studentId = userElement.textContent ?? "";
+
+  // Read module ID from DOM
+  const moduleElement = getElementById("themodule");
+  if (!moduleElement) {
+    throw new Error("Required DOM element not found: themodule");
+  }
+
+  // Read exam ID from DOM
+  const examElement = getElementById("theexam");
+  if (!examElement) {
+    throw new Error("Required DOM element not found: theexam");
+  }
+  const examId = examElement.textContent ?? "";
+
+  // Default question ID
+  const questionId = "default";
+
+  return {
+    studentId,
+    examId,
+    questionId,
+    start(): void {
+      // TODO: Start heartbeat timer
+    },
+    stop(): void {
+      // TODO: Stop heartbeat timer
+    },
+  };
 }
