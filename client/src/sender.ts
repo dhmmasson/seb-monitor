@@ -42,6 +42,10 @@ export function createSender(
 ): Sender {
   const maxRetries = options.maxRetries ?? 3;
 
+  /**
+   * Send a request with retry logic and exponential backoff.
+   * Retries up to maxRetries times on failure.
+   */
   async function sendWithRetry(url: string, body: unknown): Promise<void> {
     let lastError: Error | null = null;
 
@@ -72,10 +76,12 @@ export function createSender(
   }
 
   return {
+    /** Send heartbeat payload to /api/heartbeat endpoint */
     async sendHeartbeat(payload: HeartbeatPayload): Promise<void> {
       await sendWithRetry(`${baseUrl}/api/heartbeat`, payload);
     },
 
+    /** Send paste content to /api/paste endpoint */
     async sendPasteContent(request: PasteContentRequest): Promise<void> {
       await sendWithRetry(`${baseUrl}/api/paste`, request);
     },
