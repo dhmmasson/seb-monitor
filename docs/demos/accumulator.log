@@ -1,0 +1,30 @@
+Test run: 2026-06-14
+Module: client/src/accumulator.ts
+Command: cd client && deno test src/accumulator_test.ts
+
+Check src/accumulator_test.ts
+running 16 tests from ./src/accumulator_test.ts
+createFocusAccumulator returns zeroed accumulator ... ok (0ms)
+recordBlur increments blur count ... ok (0ms)
+getFocusRatio returns 1 when fully focused ... ok (0ms)
+getFocusRatio returns 0 when fully unfocused ... ok (0ms)
+getFocusRatio returns 0.5 when equally focused and unfocused ... ok (0ms)
+getFocusRatio returns 1 when no time recorded ... ok (0ms)
+createInputStats returns zeroed stats ... ok (0ms)
+recordInput with positive delta increments typedChars ... ok (0ms)
+recordInput with negative delta increments deletedChars ... ok (0ms)
+recordInput with positive delta after paste increments pastedChars ... ok (0ms)
+createKeyStats returns zeroed stats ... ok (0ms)
+recordKey increments keyDownCount ... ok (0ms)
+recordKey with ctrlKey increments ctrlCount ... ok (0ms)
+recordKey with altKey increments altCount ... ok (0ms)
+recordKey with shiftKey increments shiftCount ... ok (0ms)
+resetAccumulators zeros all counters ... ok (0ms)
+
+ok | 16 passed | 0 failed (4ms)
+
+Coverage:
+- FocusAccumulator: create, recordBlur, recordFocusTime, recordUnfocusedTime, getFocusRatio
+- InputStats: create, recordInput (typed, pasted, deleted)
+- KeyStats: create, recordKey (with modifiers)
+- Reset: preserves currentLength, zeros all counters
