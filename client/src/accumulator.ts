@@ -5,7 +5,11 @@
  * @module accumulator
  */
 
-import type { FocusAccumulator, InputStats, KeyStats } from "../../shared/types.ts";
+import type {
+  FocusAccumulator,
+  InputStats,
+  KeyStats,
+} from "../../shared/types.ts";
 
 /**
  * Create a new FocusAccumulator with zeroed values.

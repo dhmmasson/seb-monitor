@@ -4,14 +4,16 @@ import { sha256 } from "./crypto.ts";
 // Test SHA-256 hashing against known vectors
 Deno.test("sha256 returns correct hash for empty string", async () => {
   // SHA-256 of empty string is a well-known vector
-  const expected = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  const expected =
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   const result = await sha256("");
   assertEquals(result, expected);
 });
 
 Deno.test("sha256 returns correct hash for 'hello'", async () => {
   // SHA-256 of "hello" is a well-known vector
-  const expected = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+  const expected =
+    "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
   const result = await sha256("hello");
   assertEquals(result, expected);
 });

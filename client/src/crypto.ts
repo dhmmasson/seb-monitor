@@ -1,7 +1,7 @@
 /**
  * SHA-256 hashing module using Web Crypto API.
  * Used for hashing copy/paste content without storing the actual text.
- * 
+ *
  * @module crypto
  */
 

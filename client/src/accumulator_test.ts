@@ -3,15 +3,17 @@ import {
   createFocusAccumulator,
   createInputStats,
   createKeyStats,
-  recordBlur,
   getFocusRatio,
+  recordBlur,
   recordInput,
   recordKey,
   resetAccumulators,
-  recordFocusTime,
-  recordUnfocusedTime,
 } from "./accumulator.ts";
-import type { FocusAccumulator, InputStats, KeyStats } from "../../shared/types.ts";
+import type {
+  FocusAccumulator,
+  InputStats,
+  KeyStats,
+} from "../../shared/types.ts";
 
 // ===== Focus Accumulator Tests =====
 
