@@ -84,15 +84,18 @@ export function createKeyStats(): KeyStats {
 /**
  * Record a keydown event with modifier key state.
  * Only stores counts, never actual key values.
+ *
+ * @param keys - The KeyStats accumulator to update
+ * @param event - Object indicating which modifier keys were pressed
  */
 export function recordKey(
   keys: KeyStats,
   event: { ctrlKey?: boolean; altKey?: boolean; shiftKey?: boolean },
 ): void {
   keys.keyDownCount++;
-  if (event.ctrlKey) keys.ctrlCount++;
-  if (event.altKey) keys.altCount++;
-  if (event.shiftKey) keys.shiftCount++;
+  keys.ctrlCount += event.ctrlKey ? 1 : 0;
+  keys.altCount += event.altKey ? 1 : 0;
+  keys.shiftCount += event.shiftKey ? 1 : 0;
 }
 
 /**
