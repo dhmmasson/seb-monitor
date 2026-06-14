@@ -115,6 +115,7 @@ Deno.test("schema: heartbeats table has correct columns", () => {
       "id",
       "session_id",
       "timestamp",
+      "question_id",
       "focused_time_ms",
       "unfocused_time_ms",
       "blur_count",
@@ -265,21 +266,22 @@ Deno.test("heartbeats: insertHeartbeat stores correct values", () => {
     insertHeartbeat(db, session.sessionId, payload);
 
     const rows = queryAll(db,
-      "SELECT focused_time_ms, unfocused_time_ms, blur_count, typed_chars, pasted_chars, deleted_chars, current_length, copy_count, paste_count, key_down_count FROM heartbeats WHERE session_id = ?",
+      "SELECT question_id, focused_time_ms, unfocused_time_ms, blur_count, typed_chars, pasted_chars, deleted_chars, current_length, copy_count, paste_count, key_down_count FROM heartbeats WHERE session_id = ?",
       [session.sessionId]
     );
     assertEquals(rows.length, 1);
     const row = rows[0];
-    assertEquals(row[0], 58000);
-    assertEquals(row[1], 2000);
-    assertEquals(row[2], 1);
-    assertEquals(row[3], 340);
-    assertEquals(row[4], 120);
-    assertEquals(row[5], 25);
-    assertEquals(row[6], 435);
-    assertEquals(row[7], 1);
-    assertEquals(row[8], 2);
-    assertEquals(row[9], 890);
+    assertEquals(row[0], "q1");
+    assertEquals(row[1], 58000);
+    assertEquals(row[2], 2000);
+    assertEquals(row[3], 1);
+    assertEquals(row[4], 340);
+    assertEquals(row[5], 120);
+    assertEquals(row[6], 25);
+    assertEquals(row[7], 435);
+    assertEquals(row[8], 1);
+    assertEquals(row[9], 2);
+    assertEquals(row[10], 890);
   } finally {
     closeTestDb(db);
   }
