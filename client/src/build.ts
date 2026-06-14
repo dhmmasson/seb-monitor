@@ -20,6 +20,13 @@ export interface BuildConfig {
  * Create esbuild build configuration.
  * Returns a config object for bundling the client into a single IIFE JS file.
  *
+ * Configuration details:
+ * - Entry point: src/index.ts
+ * - Output: dist/seb-monitor.js (single file, minified)
+ * - Format: IIFE (immediately invoked function expression)
+ * - Target: ES2020 (modern browsers, including SEB's Chromium)
+ * - Platform: browser (no Node.js APIs)
+ *
  * @returns BuildConfig for esbuild
  */
 export function createBuildConfig(): BuildConfig {
