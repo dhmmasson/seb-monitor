@@ -1,6 +1,10 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { createCollector } from "./collector.ts";
-import type { FocusAccumulator, InputStats, KeyStats } from "../../shared/types.ts";
+import type {
+  FocusAccumulator,
+  InputStats,
+  KeyStats,
+} from "../../shared/types.ts";
 
 // Helper to create mock accumulators
 function createMockAccumulators() {
@@ -26,7 +30,10 @@ function createMockAccumulators() {
 }
 
 // Mock paste sender
-const mockSendPaste = async (_content: string, _hash: string): Promise<void> => {};
+const mockSendPaste = async (
+  _content: string,
+  _hash: string,
+): Promise<void> => {};
 
 // ===== Collector Creation Tests =====
 

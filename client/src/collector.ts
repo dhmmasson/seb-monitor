@@ -6,7 +6,12 @@
  * @module collector
  */
 
-import type { ExamEvent, FocusAccumulator, InputStats, KeyStats } from "../../shared/types.ts";
+import type {
+  ExamEvent,
+  FocusAccumulator,
+  InputStats,
+  KeyStats,
+} from "../../shared/types.ts";
 
 /** Callback type for sending paste content to server */
 export type SendPasteContent = (content: string, hash: string) => Promise<void>;
@@ -37,10 +42,10 @@ export interface Collector {
  * @returns Collector instance
  */
 export function createCollector(
-  focus: FocusAccumulator,
-  input: InputStats,
-  keys: KeyStats,
-  sendPasteContent: SendPasteContent,
+  _focus: FocusAccumulator,
+  _input: InputStats,
+  _keys: KeyStats,
+  _sendPasteContent: SendPasteContent,
 ): Collector {
   // TODO: Implement
   throw new Error("Not implemented");
