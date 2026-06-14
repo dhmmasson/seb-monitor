@@ -23,6 +23,13 @@ export interface BuildConfig {
  * @returns BuildConfig for esbuild
  */
 export function createBuildConfig(): BuildConfig {
-  // TODO: Implement
-  throw new Error("Not implemented");
+  return {
+    entryPoints: ["src/index.ts"],
+    bundle: true,
+    format: "iife",
+    outfile: "dist/seb-monitor.js",
+    minify: true,
+    target: "es2020",
+    platform: "browser",
+  };
 }
