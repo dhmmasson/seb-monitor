@@ -8,7 +8,8 @@
   "imports": {
     "@oak/oak": "jsr:@oak/oak@17",
     "@std/assert": "jsr:@std/assert@1",
-    "@std/testing": "jsr:@std/testing@1"
+    "@std/testing": "jsr:@std/testing@1",
+    "sqlite": "https://deno.land/x/sqlite/mod.ts"
   },
   "compilerOptions": {
     "lib": ["deno.ns", "deno.window"]

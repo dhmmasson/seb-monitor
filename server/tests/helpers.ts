@@ -1,15 +1,15 @@
 /**
  * Test helpers — shared utilities for server tests.
  */
-import { Database } from "deno:sqlite";
+import { DB } from "sqlite";
 import { runMigrations } from "../src/db/schema.ts";
 
 /**
  * Create an in-memory SQLite database with schema applied.
  * Each test gets a fresh, isolated database.
  */
-export function createTestDb(): Database {
-  const db = new Database(":memory:");
+export function createTestDb(): DB {
+  const db = new DB(":memory:");
   runMigrations(db);
   return db;
 }
@@ -17,6 +17,6 @@ export function createTestDb(): Database {
 /**
  * Close a test database.
  */
-export function closeTestDb(db: Database): void {
+export function closeTestDb(db: DB): void {
   db.close();
 }
