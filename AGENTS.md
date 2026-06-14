@@ -27,7 +27,8 @@ Before writing any implementation code:
 1. Write a test that exercises the behavior you intend to implement.
 2. The test must **fail** when run. If it passes, the behavior already exists — stop and reassess.
 3. The test must be **specific** — it should fail for the right reason (assertion failure, not a crash unless the feature has not been implemented at all). Do not build stub code in this part. 
-4. Commit this as a standalone commit.
+4. **Run linter and type-checker** before committing (see Section 2.5).
+5. Commit this as a standalone commit.
 
 ```
 test: add failing test for <feature>
@@ -38,7 +39,8 @@ test: add failing test for <feature>
 1. Write the **minimum** implementation code that makes the failing test pass.
 2. Do not add extra behavior beyond what the test requires.
 3. Run the test — it must pass.
-4. Commit this as a standalone commit.
+4. **Run linter and type-checker** before committing (see Section 2.5).
+5. Commit this as a standalone commit.
 
 ```
 feat: implement <feature> (makes test pass)
@@ -49,7 +51,8 @@ feat: implement <feature> (makes test pass)
 1. Now that the test protects the behavior, clean up the code.
 2. Extract functions, rename variables, improve clarity — but do not change the test or the behavior.
 3. Run the test again — it must still pass.
-4. Commit this as a standalone commit.
+4. **Run linter and type-checker** before committing (see Section 2.5).
+5. Commit this as a standalone commit.
 
 ```
 refactor: clean up <feature> implementation
@@ -64,6 +67,28 @@ Each TDD cycle produces **3 commits**:
 | `test: add failing test for X` | Test only, no implementation | Specification intent is captured |
 | `feat: implement X` | Implementation makes test pass | Code satisfies specification |
 | `refactor: clean up X` | Code quality improvement | Behavior is preserved |
+
+---
+
+### 2.5 Linting & Type-Checking (Mandatory Before Every Commit)
+
+Before **each** commit in the TDD cycle, you must run:
+
+```bash
+# Client-side (Deno)
+cd client && deno lint && deno check src/*.ts
+
+# Server-side (Deno)
+cd server && deno lint && deno check src/*.ts
+```
+
+**Rules**:
+- All linting errors must be resolved before committing.
+- All type-checking errors must be resolved before committing.
+- If linting or type-checking fails, fix the issues before proceeding.
+- Do not commit code with lint or type errors — even in the RED phase.
+
+This ensures every commit in the history is clean and passes basic quality checks.
 
 ---
 
@@ -169,6 +194,8 @@ feat(api): implement POST /api/heartbeat route (makes test pass)
 refactor(api): extract payload validation into middleware
 docs(api): document heartbeat endpoint — validated via curl test + DB verification
 ```
+
+check that commit are valid using `cz check -m "<message>"    
 
 ---
 
