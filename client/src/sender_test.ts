@@ -1,6 +1,9 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { createSender } from "./sender.ts";
-import type { HeartbeatPayload, PasteContentRequest } from "../../shared/types.ts";
+import type {
+  HeartbeatPayload,
+  PasteContentRequest,
+} from "../../shared/types.ts";
 
 // Mock fetch responses
 let mockFetchResponse: Response | null = null;
@@ -22,7 +25,9 @@ function mockFetch(
     return Promise.reject(mockFetchError);
   }
 
-  return Promise.resolve(mockFetchResponse ?? new Response(null, { status: 200 }));
+  return Promise.resolve(
+    mockFetchResponse ?? new Response(null, { status: 200 }),
+  );
 }
 
 // Reset mock state
@@ -122,7 +127,9 @@ Deno.test("sendHeartbeat retries on failure", async () => {
   resetMocks();
   mockFetchError = new Error("Network error");
 
-  const sender = createSender("http://localhost:8000", mockFetch, { maxRetries: 2 });
+  const sender = createSender("http://localhost:8000", mockFetch, {
+    maxRetries: 2,
+  });
 
   try {
     await sender.sendHeartbeat(sampleHeartbeat);
@@ -157,7 +164,10 @@ Deno.test("sendPasteContent sends JSON payload", async () => {
   assertEquals(lastFetchOptions?.headers, {
     "Content-Type": "application/json",
   });
-  assertEquals(JSON.parse(lastFetchOptions?.body as string), samplePasteRequest);
+  assertEquals(
+    JSON.parse(lastFetchOptions?.body as string),
+    samplePasteRequest,
+  );
 });
 
 Deno.test("sendPasteContent resolves on success", async () => {
@@ -174,7 +184,9 @@ Deno.test("sendPasteContent retries on failure", async () => {
   resetMocks();
   mockFetchError = new Error("Network error");
 
-  const sender = createSender("http://localhost:8000", mockFetch, { maxRetries: 2 });
+  const sender = createSender("http://localhost:8000", mockFetch, {
+    maxRetries: 2,
+  });
 
   try {
     await sender.sendPasteContent(samplePasteRequest);
@@ -190,7 +202,9 @@ Deno.test("sendPasteContent throws after max retries", async () => {
   resetMocks();
   mockFetchError = new Error("Network error");
 
-  const sender = createSender("http://localhost:8000", mockFetch, { maxRetries: 1 });
+  const sender = createSender("http://localhost:8000", mockFetch, {
+    maxRetries: 1,
+  });
 
   await assertRejects(
     () => sender.sendPasteContent(samplePasteRequest),

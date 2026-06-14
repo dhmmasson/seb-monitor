@@ -7,9 +7,9 @@
 
 import type {
   FocusAccumulator,
+  HeartbeatPayload,
   InputStats,
   KeyStats,
-  HeartbeatPayload,
 } from "../../shared/types.ts";
 import type { Collector } from "./collector.ts";
 

@@ -1,10 +1,10 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { createHeartbeatBuilder } from "./heartbeat.ts";
 import type {
+  ExamEvent,
   FocusAccumulator,
   InputStats,
   KeyStats,
-  ExamEvent,
 } from "../../shared/types.ts";
 
 // Helper to create mock accumulators
@@ -35,9 +35,15 @@ function createMockCollector() {
   return {
     start: () => {},
     stop: () => {},
-    getEvents: () => [
-      { type: "copy" as const, timestamp: 123456, hash: "abc123", length: 84 },
-    ] as ExamEvent[],
+    getEvents: () =>
+      [
+        {
+          type: "copy" as const,
+          timestamp: 123456,
+          hash: "abc123",
+          length: 84,
+        },
+      ] as ExamEvent[],
     getCopyCount: () => 1,
     getPasteCount: () => 2,
     clearEvents: () => {},
@@ -240,7 +246,9 @@ Deno.test("reset clears collector events", () => {
     getEvents: () => [] as ExamEvent[],
     getCopyCount: () => 0,
     getPasteCount: () => 0,
-    clearEvents: () => { eventsCleared = true; },
+    clearEvents: () => {
+      eventsCleared = true;
+    },
   };
 
   const builder = createHeartbeatBuilder(

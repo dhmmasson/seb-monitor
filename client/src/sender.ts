@@ -5,7 +5,10 @@
  * @module sender
  */
 
-import type { HeartbeatPayload, PasteContentRequest } from "../../shared/types.ts";
+import type {
+  HeartbeatPayload,
+  PasteContentRequest,
+} from "../../shared/types.ts";
 
 /** Options for the sender */
 export interface SenderOptions {
