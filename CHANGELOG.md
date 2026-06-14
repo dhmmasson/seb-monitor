@@ -1,3 +1,17 @@
+## v0.2.0 (2026-06-14)
+
+### Feat
+
+- **server**: implement DB schema, CRUD, and API routes (GREEN phase)
+
+### Fix
+
+- **server**: replace Oak with Deno.serve(), fix paste FK, wire demo sessionId
+
+### Refactor
+
+- **server**: add main.ts entry point, connection singleton, config
+
 ## v0.1.0 (2026-06-14)
 
 ### Feat
