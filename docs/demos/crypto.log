@@ -1,0 +1,19 @@
+Test run: 2026-06-14
+Module: client/src/crypto.ts
+Command: cd client && deno test src/crypto_test.ts
+
+Check src/crypto_test.ts
+running 4 tests from ./src/crypto_test.ts
+sha256 returns correct hash for empty string ... ok (0ms)
+sha256 returns correct hash for 'hello' ... ok (0ms)
+sha256 returns hex string of length 64 ... ok (0ms)
+sha256 returns different hashes for different inputs ... ok (0ms)
+
+ok | 4 passed | 0 failed (3ms)
+
+Test vectors verified:
+- Empty string: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 ✓
+- "hello": 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824 ✓
+- Output format: 64 lowercase hex characters ✓
+- Deterministic: same input → same output ✓
+- Different inputs → different outputs ✓
