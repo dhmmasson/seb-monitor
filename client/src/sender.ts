@@ -36,10 +36,48 @@ export type FetchFn = (
  * @returns Sender instance
  */
 export function createSender(
-  _baseUrl: string,
-  _fetchFn: FetchFn = globalThis.fetch,
-  _options: SenderOptions = {},
+  baseUrl: string,
+  fetchFn: FetchFn = globalThis.fetch,
+  options: SenderOptions = {},
 ): Sender {
-  // TODO: Implement
-  throw new Error("Not implemented");
+  const maxRetries = options.maxRetries ?? 3;
+
+  async function sendWithRetry(url: string, body: unknown): Promise<void> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetchFn(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (response.ok) {
+          return;
+        }
+
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (attempt < maxRetries) {
+          // Exponential backoff: 1s, 2s, 4s, etc.
+          const delay = Math.pow(2, attempt) * 1000;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  return {
+    async sendHeartbeat(payload: HeartbeatPayload): Promise<void> {
+      await sendWithRetry(`${baseUrl}/api/heartbeat`, payload);
+    },
+
+    async sendPasteContent(request: PasteContentRequest): Promise<void> {
+      await sendWithRetry(`${baseUrl}/api/paste`, request);
+    },
+  };
 }
