@@ -13,9 +13,11 @@ The system must be:
 * resilient to temporary network failures
 * independent of the exam business logic
 
-The system must **never store answer content**, clipboard content, screenshots, or individual keystrokes.
+The system must **never store answer content**, screenshots, or individual keystrokes.
 
-Only metadata and cryptographic hashes may be stored.
+The system **does store paste content** server-side (hashed and linked to the student session) to allow instructors to review suspicious pastes after the exam. This is the only form of content the system retains. Copy content is still stored as hash-only.
+
+Only metadata and cryptographic hashes may be stored for all other data.
 
 ---
 
@@ -110,11 +112,14 @@ At paste time:
 
 * retrieve pasted text
 * compute SHA-256 hash
-* store hash only
+* store hash only in the heartbeat event buffer
 * store pasted text length only
 * timestamp the event
+* **immediately send** the paste content to the server via `POST /api/paste` (hash + content)
 
-Never store pasted text.
+The paste content is stored server-side linked by its SHA-256 hash and the student's session. This allows instructors to review what was pasted during exam review. The content is never sent in the heartbeat — it goes through a dedicated endpoint to ensure it is captured even if the heartbeat fails.
+
+Never store pasted text in the heartbeat payload itself.
 
 ---
 
@@ -156,6 +161,8 @@ interface PasteEvent {
   matchedCopyHash?: string | null;
 }
 ```
+
+Note: The paste **content** is sent separately via `POST /api/paste` immediately upon detection. The event in the heartbeat only carries the hash and metadata.
 
 The client should attempt to match the paste hash against previously observed copy hashes during the current session.
 
@@ -486,7 +493,76 @@ interface StoredEvent {
 }
 ```
 
+---
 
+# Paste Content Storage
+
+Paste content is stored separately from the event stream. Each paste is sent immediately to the server via a dedicated API endpoint.
+
+## Paste Content Table
+
+```ts
+interface StoredPasteContent {
+  hash: string;          // SHA-256 hash of the pasted text (primary key)
+  session_id: string;    // Session that performed the paste
+  content: string;       // The actual pasted text (plaintext)
+  length: number;        // Character count
+  timestamp: number;     // When the paste occurred
+  exam_id: string;       // Denormalized for easy querying
+  created_at: string;
+}
+```
+
+The hash serves as both the primary key and a deduplication mechanism: if the same text is pasted multiple times by the same or different students, it is stored only once, and subsequent pastes reference the existing hash.
+
+## Paste Content API
+
+### POST /api/paste
+
+The client calls this endpoint immediately upon detecting a paste, **outside** the heartbeat cycle.
+
+**Request body**:
+
+```ts
+interface PasteContentRequest {
+  hash: string;        // SHA-256 of the pasted text
+  content: string;     // The pasted text itself
+  length: number;      // Character count
+  sessionId: string;   // Server-assigned session ID
+  examId: string;      // Exam identifier
+  timestamp: number;   // When the paste occurred
+}
+```
+
+**Server-side logic**:
+
+1. Validate payload
+2. If hash already exists in table → update `session_id` (append reference) or skip (idempotent)
+3. If hash is new → insert row
+4. Return `200 OK`
+
+**Why a separate endpoint?**
+
+Paste content is the most sensitive data the system stores. Keeping it in a dedicated endpoint and table:
+* isolates it from the heartbeat flow (a failed heartbeat does not lose paste evidence)
+* allows independent retention policies (paste content can be purged separately)
+* makes access control auditable (dashboard queries this table explicitly)
+
+### GET /api/paste/{hash}
+
+Retrieve the content of a paste by its hash. **Dashboard-only** (requires authentication).
+
+**Response**:
+
+```json
+{
+  "hash": "a3f9...",
+  "content": "The pasted text...",
+  "length": 84,
+  "sessionId": "S1",
+  "timestamp": 124001
+}
+```
 
 ---
 
