@@ -47,11 +47,13 @@ export function createCollector(
   _keys: KeyStats,
   _sendPasteContent: SendPasteContent,
 ): Collector {
+  // Internal state
   const events: ExamEvent[] = [];
   let copyCount = 0;
   let pasteCount = 0;
   let _started = false;
 
+  // Public API
   return {
     start(): void {
       _started = true;
@@ -60,6 +62,7 @@ export function createCollector(
       _started = false;
     },
     getEvents(): ExamEvent[] {
+      // Return a copy to prevent external mutation
       return [...events];
     },
     clearEvents(): void {
