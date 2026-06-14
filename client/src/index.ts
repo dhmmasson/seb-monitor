@@ -42,7 +42,7 @@ export function initialize(
   }
   const studentId = userElement.textContent ?? "";
 
-  // Read module ID from DOM
+  // Read module ID from DOM (not used in current implementation)
   const moduleElement = getElementById("themodule");
   if (!moduleElement) {
     throw new Error("Required DOM element not found: themodule");
@@ -55,18 +55,21 @@ export function initialize(
   }
   const examId = examElement.textContent ?? "";
 
-  // Default question ID
+  // Default question ID (can be extended to read from DOM or config)
   const questionId = "default";
 
   return {
     studentId,
     examId,
     questionId,
+    /** Start the heartbeat timer and event collection */
     start(): void {
+      // TODO: Initialize accumulators, collector, heartbeat builder, sender
       // TODO: Start heartbeat timer
     },
+    /** Stop the heartbeat timer and event collection */
     stop(): void {
-      // TODO: Stop heartbeat timer
+      // TODO: Clear heartbeat timer
     },
   };
 }
