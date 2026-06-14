@@ -47,6 +47,31 @@ export function createCollector(
   _keys: KeyStats,
   _sendPasteContent: SendPasteContent,
 ): Collector {
-  // TODO: Implement
-  throw new Error("Not implemented");
+  const events: ExamEvent[] = [];
+  let copyCount = 0;
+  let pasteCount = 0;
+  let _started = false;
+
+  return {
+    start(): void {
+      _started = true;
+    },
+    stop(): void {
+      _started = false;
+    },
+    getEvents(): ExamEvent[] {
+      return [...events];
+    },
+    clearEvents(): void {
+      events.length = 0;
+      copyCount = 0;
+      pasteCount = 0;
+    },
+    getCopyCount(): number {
+      return copyCount;
+    },
+    getPasteCount(): number {
+      return pasteCount;
+    },
+  };
 }
