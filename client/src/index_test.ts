@@ -1,5 +1,5 @@
 import { assertEquals, assertExists } from "@std/assert";
-import { initialize } from "./index.ts";
+import { initialize, resolveQuestionId } from "./index.ts";
 
 // Mock DOM elements
 let mockElements: Record<string, HTMLElement> = {};
@@ -200,4 +200,47 @@ Deno.test("stop ends heartbeat timer", () => {
 
   // stop() should not throw even if not started
   result.stop();
+});
+
+// ===== resolveQuestionId Tests =====
+
+Deno.test("resolveQuestionId returns 'default' when no URL or document", () => {
+  assertEquals(resolveQuestionId("", undefined), "default");
+});
+
+Deno.test("resolveQuestionId extracts 'slot' from Moodle quiz URL", () => {
+  const url = "https://moodle.example.com/mod/quiz/attempt.php?attempt=123&slot=3&page=2";
+  assertEquals(resolveQuestionId(url, undefined), "3");
+});
+
+Deno.test("resolveQuestionId extracts 'questionId' from generic URL", () => {
+  const url = "https://example.com/exam?q=hello&questionId=q42";
+  assertEquals(resolveQuestionId(url, undefined), "q42");
+});
+
+Deno.test("resolveQuestionId prefers 'slot' over 'questionId'", () => {
+  const url = "https://moodle.example.com/quiz?slot=5&questionId=q42";
+  assertEquals(resolveQuestionId(url, undefined), "5");
+});
+
+Deno.test("resolveQuestionId falls back to 'default' for URL without params", () => {
+  const url = "https://moodle.example.com/mod/quiz/attempt.php";
+  assertEquals(resolveQuestionId(url, undefined), "default");
+});
+
+Deno.test("resolveQuestionId reads data-question-id from script tag", () => {
+  const mockDoc = {
+    querySelector: (selector: string) => {
+      if (selector === "script[data-question-id]") {
+        return {
+          getAttribute: (attr: string) => attr === "data-question-id" ? "q7" : null,
+        } as unknown as Element;
+      }
+      return null;
+    },
+  };
+  assertEquals(
+    resolveQuestionId("https://example.com", mockDoc),
+    "q7",
+  );
 });

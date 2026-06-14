@@ -14,17 +14,18 @@ export function insertHeartbeat(
 ): void {
   const stmt = db.prepareQuery(
     `INSERT INTO heartbeats (
-      session_id, timestamp,
+      session_id, timestamp, question_id,
       focused_time_ms, unfocused_time_ms, blur_count,
       typed_chars, pasted_chars, deleted_chars, current_length,
       copy_count, paste_count,
       key_down_count, ctrl_count, alt_count, shift_count
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   try {
     stmt.execute([
       sessionId,
       payload.timestamp,
+      payload.questionId,
       payload.focus.focusedTimeMs,
       payload.focus.unfocusedTimeMs,
       payload.focus.blurCount,

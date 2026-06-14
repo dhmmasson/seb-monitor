@@ -26,6 +26,7 @@ const MIGRATIONS = [
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id      TEXT NOT NULL REFERENCES sessions(session_id),
     timestamp       INTEGER NOT NULL,
+    question_id     TEXT NOT NULL DEFAULT 'default',
     focused_time_ms   INTEGER NOT NULL DEFAULT 0,
     unfocused_time_ms INTEGER NOT NULL DEFAULT 0,
     blur_count        INTEGER NOT NULL DEFAULT 0,

@@ -23,6 +23,39 @@ export interface InitResult {
 export type GetElementByIdFn = (id: string) => HTMLElement | null;
 
 /**
+ * Resolve the question ID from the page context.
+ * Tries multiple sources in order:
+ * 1. data-question-id attribute on the <script> tag that loaded this library
+ * 2. "slot" query parameter (Moodle quiz URLs: /mod/quiz/attempt.php?slot=3)
+ * 3. "questionId" query parameter (generic)
+ * 4. Falls back to "default"
+ */
+export function resolveQuestionId(
+  currentUrl?: string,
+  documentRef?: { querySelector: (s: string) => Element | null },
+): string {
+  const url = currentUrl ?? (typeof location !== "undefined" ? location.href : "");
+  const doc = documentRef ?? (typeof document !== "undefined" ? document : null);
+
+  // 1. Check data-question-id on the script tag
+  if (doc) {
+    const scriptEl = doc.querySelector("script[data-question-id]");
+    if (scriptEl) {
+      const qid = scriptEl.getAttribute("data-question-id");
+      if (qid) return qid;
+    }
+  }
+
+  // 2. Check URL query parameters
+  try {
+    const params = new URL(url).searchParams;
+    return params.get("slot") ?? params.get("questionId") ?? "default";
+  } catch {
+    return "default";
+  }
+}
+
+/**
  * Initialize the monitoring system.
  * Reads student/exam IDs from DOM elements and sets up the heartbeat system.
  *
@@ -55,8 +88,13 @@ export function initialize(
   }
   const examId = examElement.textContent ?? "";
 
-  // Default question ID (can be extended to read from DOM or config)
-  const questionId = "default";
+  // Read question ID with fallback chain:
+  // 1. data-question-id attribute on the <script> tag
+  // 2. "slot" query parameter from Moodle quiz URLs
+  //    (e.g., /mod/quiz/attempt.php?attempt=123&slot=3)
+  // 3. "questionId" query parameter (generic)
+  // 4. Default: "default"
+  const questionId = resolveQuestionId();
 
   return {
     studentId,
