@@ -61,9 +61,11 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);`,
 
   // Paste content store — isolated for access control + retention
+  // No foreign key on session_id: paste arrives via dedicated endpoint,
+  // may arrive before the first heartbeat creates the session.
   `CREATE TABLE IF NOT EXISTS paste_contents (
     hash            TEXT PRIMARY KEY,
-    session_id      TEXT NOT NULL REFERENCES sessions(session_id),
+    session_id      TEXT NOT NULL,
     content         TEXT NOT NULL,
     length          INTEGER NOT NULL,
     timestamp       INTEGER NOT NULL,

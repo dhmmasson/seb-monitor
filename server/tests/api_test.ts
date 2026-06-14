@@ -1,9 +1,9 @@
 /**
  * Tests for API routes: POST /api/heartbeat, POST /api/paste, GET /api/paste/:hash.
- * GREEN phase: these tests should pass with the implementation.
+ * Uses Deno.serve()-compatible handler (no Oak dependency).
  */
 import { assertEquals, assertExists } from "@std/assert";
-import { createApp } from "../src/routes/api.ts";
+import { createHandler } from "../src/routes/api.ts";
 import { createTestDb, closeTestDb } from "./helpers.ts";
 
 function makeHeartbeatPayload(overrides: Record<string, unknown> = {}) {
@@ -22,21 +22,21 @@ function makeHeartbeatPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// Helper: send a request through the Oak app's fetch handler
+// Helper: send a request through the handler
 async function sendRequest(
-  app: ReturnType<typeof createApp>,
+  handler: (req: Request) => Promise<Response>,
   path: string,
   options: RequestInit = {},
 ): Promise<Response> {
   const url = new URL(path, "http://localhost:8000");
   const request = new Request(url.toString(), options);
-  return await app.fetch(request);
+  return await handler(request);
 }
 
 Deno.test("POST /api/heartbeat: accepts valid heartbeat and returns 200", async () => {
   const db = createTestDb();
   try {
-    const app = createApp(db);
+    const app = createHandler(db);
     const resp = await sendRequest(app, "/api/heartbeat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -53,7 +53,7 @@ Deno.test("POST /api/heartbeat: accepts valid heartbeat and returns 200", async 
 Deno.test("POST /api/heartbeat: stores heartbeat in database", async () => {
   const db = createTestDb();
   try {
-    const app = createApp(db);
+    const app = createHandler(db);
     const resp = await sendRequest(app, "/api/heartbeat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -77,7 +77,7 @@ Deno.test("POST /api/heartbeat: stores heartbeat in database", async () => {
 Deno.test("POST /api/heartbeat: stores events from payload", async () => {
   const db = createTestDb();
   try {
-    const app = createApp(db);
+    const app = createHandler(db);
     const resp = await sendRequest(app, "/api/heartbeat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -105,7 +105,7 @@ Deno.test("POST /api/heartbeat: stores events from payload", async () => {
 Deno.test("POST /api/heartbeat: returns 400 for invalid payload", async () => {
   const db = createTestDb();
   try {
-    const app = createApp(db);
+    const app = createHandler(db);
     const resp = await sendRequest(app, "/api/heartbeat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -120,7 +120,7 @@ Deno.test("POST /api/heartbeat: returns 400 for invalid payload", async () => {
 Deno.test("POST /api/paste: stores paste content", async () => {
   const db = createTestDb();
   try {
-    const app = createApp(db);
+    const app = createHandler(db);
 
     // First create a session via heartbeat
     const hbResp = await sendRequest(app, "/api/heartbeat", {
@@ -152,7 +152,7 @@ Deno.test("POST /api/paste: stores paste content", async () => {
 Deno.test("POST /api/paste: idempotent for same hash", async () => {
   const db = createTestDb();
   try {
-    const app = createApp(db);
+    const app = createHandler(db);
 
     const hbResp = await sendRequest(app, "/api/heartbeat", {
       method: "POST",
@@ -198,7 +198,7 @@ Deno.test("POST /api/paste: idempotent for same hash", async () => {
 Deno.test("GET /api/paste/:hash: retrieves paste content", async () => {
   const db = createTestDb();
   try {
-    const app = createApp(db);
+    const app = createHandler(db);
 
     const hbResp = await sendRequest(app, "/api/heartbeat", {
       method: "POST",
@@ -233,7 +233,7 @@ Deno.test("GET /api/paste/:hash: retrieves paste content", async () => {
 Deno.test("GET /api/paste/:hash: returns 404 for missing hash", async () => {
   const db = createTestDb();
   try {
-    const app = createApp(db);
+    const app = createHandler(db);
     const resp = await sendRequest(app, "/api/paste/nonexistent");
     assertEquals(resp.status, 404);
   } finally {

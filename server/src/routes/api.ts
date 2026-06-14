@@ -1,14 +1,26 @@
 /**
  * API routes — POST /api/heartbeat, POST /api/paste, GET /api/paste/:hash
- * Uses Oak framework for HTTP handling.
+ * Uses Deno's built-in Deno.serve() — zero external HTTP dependencies.
  */
-import { Application, Router } from "@oak/oak";
 import type { DB } from "sqlite";
 import type { HeartbeatPayload, PasteContentRequest } from "../../../shared/types.ts";
 import { findOrCreate } from "../db/sessions.ts";
 import { insertHeartbeat } from "../db/heartbeats.ts";
 import { insertEvents } from "../db/events.ts";
 import { insertPasteContent, getPasteContent } from "../db/paste_contents.ts";
+
+const CORS_HEADERS: HeadersInit = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+  });
+}
 
 /**
  * Validate a heartbeat payload — checks required fields exist.
@@ -47,109 +59,83 @@ function isValidPasteRequest(body: unknown): body is PasteContentRequest {
 }
 
 /**
- * Create the Oak application with all API routes.
- * Accepts a Database instance for dependency injection (testability).
+ * Extract path parameter from URL pattern match.
+ * e.g. extractParam("/api/paste/abc123", "/api/paste/:hash") → "abc123"
  */
-export function createApp(db: DB): Application {
-  const router = new Router();
+function extractParam(url: string, pattern: string): string | null {
+  const regex = new RegExp("^" + pattern.replace(/:(\w+)/g, "(?<$1>[^/]+)") + "$");
+  const match = url.match(regex);
+  return match?.groups ? Object.values(match.groups)[0] ?? null : null;
+}
 
-  // POST /api/heartbeat — receive telemetry
-  router.post("/api/heartbeat", async (ctx) => {
-    let body: unknown;
-    try {
-      body = await ctx.request.body.json();
-    } catch {
-      ctx.response.status = 400;
-      ctx.response.body = { error: "Invalid JSON body" };
-      return;
+/**
+ * Create a fetch handler with all API routes.
+ * Accepts a Database instance for dependency injection (testability).
+ * Compatible with Deno.serve() — returns a standard fetch handler.
+ */
+export function createHandler(db: DB): (req: Request) => Promise<Response> {
+  return async (req: Request): Promise<Response> => {
+    const url = new URL(req.url);
+    const path = url.pathname;
+    const method = req.method;
+
+    // CORS preflight
+    if (method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    if (!isValidHeartbeatPayload(body)) {
-      ctx.response.status = 400;
-      ctx.response.body = { error: "Invalid heartbeat payload" };
-      return;
+    // GET /health
+    if (path === "/health" && method === "GET") {
+      return json({ status: "ok" });
     }
 
-    // Find or create session
-    const session = findOrCreate(db, body.studentId, body.examId);
+    // POST /api/heartbeat
+    if (path === "/api/heartbeat" && method === "POST") {
+      let body: unknown;
+      try {
+        body = await req.json();
+      } catch {
+        return json({ error: "Invalid JSON body" }, 400);
+      }
 
-    // Store heartbeat
-    insertHeartbeat(db, session.sessionId, body);
+      if (!isValidHeartbeatPayload(body)) {
+        return json({ error: "Invalid heartbeat payload" }, 400);
+      }
 
-    // Store events
-    insertEvents(db, session.sessionId, body.events);
+      const session = findOrCreate(db, body.studentId, body.examId);
+      insertHeartbeat(db, session.sessionId, body);
+      insertEvents(db, session.sessionId, body.events);
 
-    ctx.response.status = 200;
-    ctx.response.body = { sessionId: session.sessionId };
-  });
-
-  // POST /api/paste — receive paste content
-  router.post("/api/paste", async (ctx) => {
-    let body: unknown;
-    try {
-      body = await ctx.request.body.json();
-    } catch {
-      ctx.response.status = 400;
-      ctx.response.body = { error: "Invalid JSON body" };
-      return;
+      return json({ sessionId: session.sessionId });
     }
 
-    if (!isValidPasteRequest(body)) {
-      ctx.response.status = 400;
-      ctx.response.body = { error: "Invalid paste content request" };
-      return;
+    // POST /api/paste
+    if (path === "/api/paste" && method === "POST") {
+      let body: unknown;
+      try {
+        body = await req.json();
+      } catch {
+        return json({ error: "Invalid JSON body" }, 400);
+      }
+
+      if (!isValidPasteRequest(body)) {
+        return json({ error: "Invalid paste content request" }, 400);
+      }
+
+      insertPasteContent(db, body);
+      return json({ ok: true });
     }
 
-    insertPasteContent(db, body);
-
-    ctx.response.status = 200;
-    ctx.response.body = { ok: true };
-  });
-
-  // GET /api/paste/:hash — retrieve paste content
-  router.get("/api/paste/:hash", (ctx) => {
-    const hash = ctx.params.hash;
-    if (!hash) {
-      ctx.response.status = 400;
-      ctx.response.body = { error: "Missing hash parameter" };
-      return;
+    // GET /api/paste/:hash
+    const pasteHash = extractParam(path, "/api/paste/:hash");
+    if (pasteHash && method === "GET") {
+      const result = getPasteContent(db, pasteHash);
+      if (!result) {
+        return json({ error: "Paste content not found" }, 404);
+      }
+      return json(result);
     }
 
-    const result = getPasteContent(db, hash);
-    if (!result) {
-      ctx.response.status = 404;
-      ctx.response.body = { error: "Paste content not found" };
-      return;
-    }
-
-    ctx.response.status = 200;
-    ctx.response.body = result;
-  });
-
-  // Health check
-  router.get("/health", (ctx) => {
-    ctx.response.status = 200;
-    ctx.response.body = { status: "ok" };
-  });
-
-  const app = new Application();
-
-  // CORS middleware
-  app.use(async (ctx, next) => {
-    ctx.response.headers.set("Access-Control-Allow-Origin", "*");
-    ctx.response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    ctx.response.headers.set("Access-Control-Allow-Headers", "Content-Type");
-    
-    if (ctx.request.method === "OPTIONS") {
-      ctx.response.status = 204;
-      return;
-    }
-
-    await next();
-  });
-
-  app.use(router.routes());
-  app.use(router.allowedMethods());
-
-  return app;
+    return json({ error: "Not found" }, 404);
+  };
 }
