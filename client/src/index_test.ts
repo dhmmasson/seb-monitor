@@ -1,203 +1,204 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { initialize, resolveQuestionId } from "./index.ts";
 
-// Mock DOM elements
-let mockElements: Record<string, HTMLElement> = {};
-
-function createMockElement(id: string, textContent: string): HTMLElement {
+// Mock script element with dataset (simulates <script data-student-id="..." ...>)
+function createMockScript(attrs: Record<string, string>): HTMLScriptElement {
   return {
-    id,
-    textContent,
-    innerHTML: "",
-  } as HTMLElement;
+    dataset: attrs,
+    getAttribute: (name: string) => attrs[name] ?? null,
+  } as unknown as HTMLScriptElement;
 }
 
-// Mock document.getElementById
-function mockGetElementById(id: string): HTMLElement | null {
-  return mockElements[id] ?? null;
-}
+// ===== IIFE Entry Point Tests (script data-attribute based) =====
 
-// Reset mock state
-function resetMocks() {
-  mockElements = {};
-}
+Deno.test("initialize returns initialization result from script attributes", () => {
+  const script = createMockScript({
+    studentId: "John Doe",
+    moduleId: "CS101",
+    examId: "https://moodle.example.com/exam/123",
+    serverUrl: "http://localhost:8000",
+  });
 
-// ===== IIFE Entry Point Tests =====
-
-Deno.test("initialize returns initialization result", () => {
-  resetMocks();
-  mockElements = {
-    theuser: createMockElement("theuser", "John Doe"),
-    themodule: createMockElement("themodule", "CS101"),
-    theexam: createMockElement(
-      "theexam",
-      "https://moodle.example.com/exam/123",
-    ),
-  };
-
-  const result = initialize(
-    "http://localhost:8000",
-    mockGetElementById,
-  );
+  const result = initialize(script);
 
   assertExists(result);
   assertEquals(typeof result.start, "function");
   assertEquals(typeof result.stop, "function");
 });
 
-Deno.test("initialize extracts student ID from DOM", () => {
-  resetMocks();
-  mockElements = {
-    theuser: createMockElement("theuser", "John Doe"),
-    themodule: createMockElement("themodule", "CS101"),
-    theexam: createMockElement(
-      "theexam",
-      "https://moodle.example.com/exam/123",
-    ),
-  };
+Deno.test("initialize extracts studentId from data-student-id", () => {
+  const script = createMockScript({
+    studentId: "Jean Dupont",
+    moduleId: "CS101",
+    examId: "https://moodle.example.com/exam/42",
+    serverUrl: "http://localhost:8000",
+  });
 
-  const result = initialize(
-    "http://localhost:8000",
-    mockGetElementById,
-  );
-
-  assertEquals(result.studentId, "John Doe");
+  const result = initialize(script);
+  assertEquals(result.studentId, "Jean Dupont");
 });
 
-Deno.test("initialize extracts exam ID from DOM", () => {
-  resetMocks();
-  mockElements = {
-    theuser: createMockElement("theuser", "John Doe"),
-    themodule: createMockElement("themodule", "CS101"),
-    theexam: createMockElement(
-      "theexam",
-      "https://moodle.example.com/exam/123",
-    ),
-  };
+Deno.test("initialize extracts examId from data-exam-id", () => {
+  const script = createMockScript({
+    studentId: "John Doe",
+    moduleId: "CS101",
+    examId: "https://moodle.example.com/exam/42",
+    serverUrl: "http://localhost:8000",
+  });
 
-  const result = initialize(
-    "http://localhost:8000",
-    mockGetElementById,
-  );
-
-  assertEquals(result.examId, "https://moodle.example.com/exam/123");
+  const result = initialize(script);
+  assertEquals(result.examId, "https://moodle.example.com/exam/42");
 });
 
-Deno.test("initialize uses default question ID", () => {
-  resetMocks();
-  mockElements = {
-    theuser: createMockElement("theuser", "John Doe"),
-    themodule: createMockElement("themodule", "CS101"),
-    theexam: createMockElement(
-      "theexam",
-      "https://moodle.example.com/exam/123",
-    ),
-  };
+Deno.test("initialize extracts serverUrl from data-server-url", () => {
+  const script = createMockScript({
+    studentId: "John Doe",
+    moduleId: "CS101",
+    examId: "exam-1",
+    serverUrl: "https://monitor.university.edu:9000",
+  });
 
-  const result = initialize(
-    "http://localhost:8000",
-    mockGetElementById,
-  );
+  const result = initialize(script);
+  assertEquals(result.serverUrl, "https://monitor.university.edu:9000");
+});
 
+Deno.test("initialize throws when data-student-id is missing", () => {
+  const script = createMockScript({
+    moduleId: "CS101",
+    examId: "exam-1",
+    serverUrl: "http://localhost:8000",
+  });
+
+  try {
+    initialize(script);
+    assertEquals(true, false, "Should have thrown");
+  } catch (error) {
+    assertEquals(
+      (error as Error).message,
+      "Missing required attribute on script tag: data-student-id",
+    );
+  }
+});
+
+Deno.test("initialize throws when data-exam-id is missing", () => {
+  const script = createMockScript({
+    studentId: "John Doe",
+    moduleId: "CS101",
+    serverUrl: "http://localhost:8000",
+  });
+
+  try {
+    initialize(script);
+    assertEquals(true, false, "Should have thrown");
+  } catch (error) {
+    assertEquals(
+      (error as Error).message,
+      "Missing required attribute on script tag: data-exam-id",
+    );
+  }
+});
+
+Deno.test("initialize throws when data-server-url is missing", () => {
+  const script = createMockScript({
+    studentId: "John Doe",
+    moduleId: "CS101",
+    examId: "exam-1",
+  });
+
+  try {
+    initialize(script);
+    assertEquals(true, false, "Should have thrown");
+  } catch (error) {
+    assertEquals(
+      (error as Error).message,
+      "Missing required attribute on script tag: data-server-url",
+    );
+  }
+});
+
+Deno.test("initialize uses default questionId when not on script", () => {
+  const script = createMockScript({
+    studentId: "John Doe",
+    moduleId: "CS101",
+    examId: "exam-1",
+    serverUrl: "http://localhost:8000",
+  });
+
+  const result = initialize(script);
   assertEquals(result.questionId, "default");
 });
 
-Deno.test("initialize throws when theuser element not found", () => {
-  resetMocks();
-  mockElements = {
-    themodule: createMockElement("themodule", "CS101"),
-    theexam: createMockElement(
-      "theexam",
-      "https://moodle.example.com/exam/123",
-    ),
-  };
+Deno.test("initialize reads questionId from data-question-id", () => {
+  const script = createMockScript({
+    studentId: "John Doe",
+    moduleId: "CS101",
+    examId: "exam-1",
+    serverUrl: "http://localhost:8000",
+    questionId: "q3",
+  });
 
-  try {
-    initialize("http://localhost:8000", mockGetElementById);
-    assertEquals(true, false, "Should have thrown");
-  } catch (error) {
-    assertEquals(
-      (error as Error).message,
-      "Required DOM element not found: theuser",
-    );
-  }
+  const result = initialize(script);
+  assertEquals(result.questionId, "q3");
 });
 
-Deno.test("initialize throws when themodule element not found", () => {
-  resetMocks();
-  mockElements = {
-    theuser: createMockElement("theuser", "John Doe"),
-    theexam: createMockElement(
-      "theexam",
-      "https://moodle.example.com/exam/123",
-    ),
+Deno.test("initialize auto-discovers script via querySelector when not provided", () => {
+  // Simulate document.querySelector finding the script
+  const mockScript = createMockScript({
+    studentId: "Auto Student",
+    moduleId: "M101",
+    examId: "exam-auto",
+    serverUrl: "http://localhost:8000",
+  });
+
+  const mockDoc = {
+    querySelector: (selector: string) => {
+      if (selector === "script[data-student-id]") return mockScript;
+      return null;
+    },
   };
 
-  try {
-    initialize("http://localhost:8000", mockGetElementById);
-    assertEquals(true, false, "Should have thrown");
-  } catch (error) {
-    assertEquals(
-      (error as Error).message,
-      "Required DOM element not found: themodule",
-    );
-  }
+  const result = initialize(undefined, mockDoc as unknown as Document);
+  assertEquals(result.studentId, "Auto Student");
 });
 
-Deno.test("initialize throws when theexam element not found", () => {
-  resetMocks();
-  mockElements = {
-    theuser: createMockElement("theuser", "John Doe"),
-    themodule: createMockElement("themodule", "CS101"),
+Deno.test("initialize throws when script cannot be found", () => {
+  const mockDoc = {
+    querySelector: () => null,
   };
 
   try {
-    initialize("http://localhost:8000", mockGetElementById);
+    initialize(undefined, mockDoc as unknown as Document);
     assertEquals(true, false, "Should have thrown");
   } catch (error) {
     assertEquals(
       (error as Error).message,
-      "Required DOM element not found: theexam",
+      "Could not find seb-monitor script tag with data-student-id attribute",
     );
   }
 });
 
 Deno.test("start begins heartbeat timer", () => {
-  resetMocks();
-  mockElements = {
-    theuser: createMockElement("theuser", "John Doe"),
-    themodule: createMockElement("themodule", "CS101"),
-    theexam: createMockElement(
-      "theexam",
-      "https://moodle.example.com/exam/123",
-    ),
-  };
+  const script = createMockScript({
+    studentId: "John Doe",
+    moduleId: "CS101",
+    examId: "exam-1",
+    serverUrl: "http://localhost:8000",
+  });
 
-  const result = initialize(
-    "http://localhost:8000",
-    mockGetElementById,
-  );
-
+  const result = initialize(script);
   // start() should not throw
   result.start();
 });
 
 Deno.test("stop ends heartbeat timer", () => {
-  resetMocks();
-  mockElements = {
-    theuser: createMockElement("theuser", "John Doe"),
-    themodule: createMockElement("themodule", "CS101"),
-    theexam: createMockElement(
-      "theexam",
-      "https://moodle.example.com/exam/123",
-    ),
-  };
+  const script = createMockScript({
+    studentId: "John Doe",
+    moduleId: "CS101",
+    examId: "exam-1",
+    serverUrl: "http://localhost:8000",
+  });
 
-  const result = initialize(
-    "http://localhost:8000",
-    mockGetElementById,
-  );
-
+  const result = initialize(script);
   // stop() should not throw even if not started
   result.stop();
 });
