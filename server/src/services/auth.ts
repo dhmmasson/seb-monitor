@@ -6,34 +6,46 @@
 const ITERATIONS = 100_000;
 const SALT_LENGTH = 16;
 const HASH_LENGTH = 32;
+const PBKDF2 = "PBKDF2";
+const HMAC = "HMAC";
+const SHA256 = "SHA-256";
+
+/** Encode a Uint8Array to base64 string. */
+function toBase64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes));
+}
+
+/** Decode a base64 string to Uint8Array. */
+function fromBase64(b64: string): Uint8Array {
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+/** Create a PBKDF2 key from a password string. */
+function deriveKey(password: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    { name: PBKDF2 },
+    false,
+    ["deriveBits"],
+  );
+}
 
 /**
  * Hash a password using PBKDF2 with a random salt.
  * Returns format: "iterations.base64salt.base64hash"
  */
 export async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
-
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    { name: "PBKDF2" },
-    false,
-    ["deriveBits"],
-  );
+  const keyMaterial = await deriveKey(password);
 
   const hashBuffer = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: ITERATIONS, hash: "SHA-256" },
+    { name: PBKDF2, salt, iterations: ITERATIONS, hash: SHA256 },
     keyMaterial,
     HASH_LENGTH * 8,
   );
 
-  const hashArray = new Uint8Array(hashBuffer);
-  const saltB64 = btoa(String.fromCharCode(...salt));
-  const hashB64 = btoa(String.fromCharCode(...hashArray));
-
-  return `${ITERATIONS}.${saltB64}.${hashB64}`;
+  return `${ITERATIONS}.${toBase64(salt)}.${toBase64(new Uint8Array(hashBuffer))}`;
 }
 
 /**
@@ -48,27 +60,18 @@ export async function verifyPassword(
   if (parts.length !== 3) return false;
 
   const iterations = parseInt(parts[0], 10);
-  const salt = Uint8Array.from(atob(parts[1]), (c) => c.charCodeAt(0));
-  const expectedHash = Uint8Array.from(atob(parts[2]), (c) => c.charCodeAt(0));
+  const salt = fromBase64(parts[1]);
+  const expectedHash = fromBase64(parts[2]);
 
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    { name: "PBKDF2" },
-    false,
-    ["deriveBits"],
-  );
-
+  const keyMaterial = await deriveKey(password);
   const hashBuffer = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+    { name: PBKDF2, salt, iterations, hash: SHA256 },
     keyMaterial,
     expectedHash.length * 8,
   );
 
-  const computedHash = new Uint8Array(hashBuffer);
-
   // Constant-time comparison
+  const computedHash = new Uint8Array(hashBuffer);
   if (computedHash.length !== expectedHash.length) return false;
   let diff = 0;
   for (let i = 0; i < computedHash.length; i++) {
@@ -77,28 +80,29 @@ export async function verifyPassword(
   return diff === 0;
 }
 
+/** Create an HMAC-SHA256 key from a secret string. */
+function hmacKey(secret: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: HMAC, hash: SHA256 },
+    false,
+    ["sign", "verify"],
+  );
+}
+
 /**
  * Sign a cookie value using HMAC-SHA256.
  * Returns format: "value.base64signature"
  */
 export async function signCookie(value: string, secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-
+  const key = await hmacKey(secret);
   const signatureBuffer = await crypto.subtle.sign(
-    "HMAC",
+    HMAC,
     key,
-    encoder.encode(value),
+    new TextEncoder().encode(value),
   );
-
-  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
-  return `${value}.${signatureB64}`;
+  return `${value}.${toBase64(new Uint8Array(signatureBuffer))}`;
 }
 
 /**
@@ -112,29 +116,19 @@ export async function verifyCookie(
   if (lastDot === -1) return null;
 
   const value = signedValue.substring(0, lastDot);
-  const signatureB64 = signedValue.substring(lastDot + 1);
-
   let signature: Uint8Array;
   try {
-    signature = Uint8Array.from(atob(signatureB64), (c) => c.charCodeAt(0));
+    signature = fromBase64(signedValue.substring(lastDot + 1));
   } catch {
     return null;
   }
 
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["verify"],
-  );
-
+  const key = await hmacKey(secret);
   const valid = await crypto.subtle.verify(
-    "HMAC",
+    HMAC,
     key,
     new Uint8Array(signature).buffer,
-    encoder.encode(value),
+    new TextEncoder().encode(value),
   );
 
   return valid ? value : null;
