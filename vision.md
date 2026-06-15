@@ -672,3 +672,58 @@ Requirements:
 * no personally identifiable data beyond existing exam identifiers
 
 The telemetry collected must remain strictly behavioral and metadata-only.
+
+---
+
+# Architecture Decisions
+
+Record of strategic decisions taken during implementation (see also `plan.md` for operational details).
+
+## D1: Client reads config from `<script>` data-attributes
+
+**Decision**: All configuration (studentId, examId, serverUrl, questionId) is read from `data-*` attributes on the `<script>` tag itself, not from hidden DOM elements.
+
+**Rationale**: The original approach relied on a hidden `<p id="stuffs">` paragraph injected by Moodle. This creates tight coupling to Moodle's DOM structure. Using `data-*` attributes on the script tag makes the library self-contained — the script tag IS the configuration.
+
+**Moodle integration pattern**:
+```html
+<script src="https://monitor.example.com/seb-monitor.js"
+  data-student-id="{fullname}"
+  data-module-id="{module}"
+  data-exam-id="{thisurl}"
+  data-server-url="https://monitor.example.com"
+  data-question-id="q3">
+</script>
+```
+
+**Auto-discovery**: If no script element is passed to `initialize()`, the library finds itself via `document.querySelector("script[data-student-id]")`.
+
+## D2: questionId resolution fallback chain
+
+**Decision**: questionId is resolved via a priority chain: `data-question-id` attribute → Moodle `slot` URL param → generic `questionId` URL param → `"default"`.
+
+**Rationale**: Moodle quiz URLs contain a `slot` parameter identifying the question (e.g., `/mod/quiz/attempt.php?attempt=123&slot=3`). By extracting this automatically, question-level tracking works without instructor configuration. The `data-question-id` attribute provides an explicit override.
+
+## D3: Server uses Deno.serve() instead of Oak
+
+**Decision**: The HTTP server uses Deno's built-in `Deno.serve()` with a plain `(Request) => Promise<Response>` handler, instead of the Oak framework.
+
+**Rationale**: Oak introduced a JSR dependency that caused cache corruption issues in development environments. `Deno.serve()` is zero-dependency, simpler, and sufficient for our routing needs (4 endpoints). Route matching is done with string comparison + a simple `extractParam()` regex helper.
+
+## D4: paste_contents has no foreign key on session_id
+
+**Decision**: The `paste_contents` table does NOT have a `REFERENCES sessions(session_id)` constraint, unlike `heartbeats` and `events`.
+
+**Rationale**: Per the spec, paste content is sent immediately via `POST /api/paste` when a paste event occurs — this may happen before the first heartbeat creates the session. A foreign key would cause a constraint violation. The session_id is still stored for querying, just not enforced at the DB level.
+
+## D5: Session deduplication by (studentId, examId, day)
+
+**Decision**: Sessions are unique per `(studentId, examId, startOfDay)`. The server generates the UUID; the client never stores or manages sessionId.
+
+**Rationale**: When students navigate between Moodle pages (e.g., question 1 → question 2), the script reloads and re-initializes. By keying on `(studentId, examId, day)`, all heartbeats from the same student on the same exam day land in the same session — even across page navigations. The client is stateless with respect to sessions.
+
+## D6: SQLite without external database
+
+**Decision**: SQLite (via `deno.land/x/sqlite`) with WAL mode, file-based storage.
+
+**Rationale**: Self-contained deployment — no separate database container. Handles 100+ concurrent students easily. The `.db` file is the entire database, trivial to backup. If scaling beyond a single server is needed later, PostgreSQL is the migration path.

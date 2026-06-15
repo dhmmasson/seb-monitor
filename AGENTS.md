@@ -333,3 +333,50 @@ deno test --recursive
 3. Write a more specific test — if you can't write the test, you don't understand the requirement yet.
 4. Implement the simplest possible thing — you can refactor later.
 5. If the issue is ambiguous, check `plan.md` Section 7 (Open Questions) — it may be a known open question.
+
+---
+
+## 11. Best Practices (Lessons Learned)
+
+### Testing
+
+- **Server API tests use `app.fetch(request)`** — no need to start a real server. Create the handler, call it directly with a `Request` object. This is fast and isolated.
+- **In-memory SQLite for tests** — use `new DB(":memory:")` + `runMigrations(db)` in test helpers. Each test gets a fresh DB. Never share DB state between tests.
+- **`prepareQuery` for all parameterized queries** — `db.query(sql)` only works without args in `deno.land/x/sqlite`. Use `db.prepareQuery(sql).all(args)` for any query with `?` params.
+- **Client tests are co-located** — `client/src/foo_test.ts` next to `client/src/foo.ts`. Run with `cd client && deno test --no-check`.
+- **Lint before every commit** — `deno lint` on both `client/` and `server/`. Use `--no-check` for test runs to skip type-checking speed-up.
+
+### Running the Demo
+
+```bash
+# Start the Phase 2 server (needs unsandboxed terminal for Deno cache)
+cd server && deno run --allow-net --allow-env src/main.ts &
+
+# Open the Phase 1 demo in browser — it connects to port 8000 automatically
+# demo/index.html → click "Start Monitoring"
+```
+
+**Key**: The demo HTML uses `<script id="seb-monitor-config" data-student-id="..." ...>` to configure itself — same pattern as production Moodle integration.
+
+### Deno-Specific Notes
+
+- **`deno:sqlite` is not always available** — use `deno.land/x/sqlite` (add as `"sqlite"` in `deno.json` imports).
+- **Oak causes JSR cache issues** — use `Deno.serve()` instead. Zero external HTTP deps.
+- **Corrupted Deno cache** — if you see "Failed reading cache entry", delete the corrupted SQLite files in `~/Library/Caches/deno/` or use `DENO_DIR=$(mktemp -d)` for a fresh cache.
+- **`deno test --no-check`** — skip type-checking for faster test runs. Use `deno lint` separately for code quality.
+
+### TDD Workflow
+
+- **RED**: Write test → verify it fails → commit
+- **GREEN**: Minimal implementation → verify it passes → commit
+- **REFACTOR**: Clean up → verify tests still pass → commit
+- **DOCS**: Write feature docs + demo → commit
+
+Use `cz check -m "<message>"` to validate commit messages before committing.
+
+### Commit Messages
+
+- Use `git add server/` (or `client/`, `docs/`) — scope the staging area
+- Combine related changes in one commit when they're part of a single TDD cycle
+- Use `fix(server): ...` for bug fixes, `refactor(client): ...` for restructuring
+- Always include test count in the commit body: "All 28 tests pass"

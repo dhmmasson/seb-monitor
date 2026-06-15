@@ -15,7 +15,7 @@
 | **Bundler** | esbuild (fast, produces minimal bundles, trivial TS→JS) |
 | **Embedding** | `<script src="…/seb-monitor.js"></script>` — same pattern as the colleague's `moodle.js` |
 | **Runtime** | Pure browser APIs — no framework, no polyfills needed (SEB is Chromium-based) |
-| **Data source** | Reads `#theuser`, `#themodule`, `#theexam` from the existing hidden `<p id="stuffs">` DOM element already injected by the colleague's script |
+| **Data source** | Reads `data-student-id`, `data-exam-id`, `data-server-url`, `data-question-id` from the `<script>` tag's own `data-*` attributes (see vision.md D1) |
 
 **Why a single IIFE file?**
 The colleague's `moodle.js` is loaded as a plain `<script>` tag inside Moodle's Safe Exam Browser page. The monitoring script must follow the same injection pattern: no module bundler at runtime, no import maps, no npm packages in the browser. An IIFE ensures all code is self-contained and doesn't pollute the global scope.
@@ -25,7 +25,7 @@ The colleague's `moodle.js` is loaded as a plain `<script>` tag inside Moodle's 
 | Aspect | Decision |
 |---|---|
 | **Runtime** | Deno 2.x (already the project's declared runtime) |
-| **HTTP framework** | Deno std `http` + oak (lightweight, well-supported) |
+| **HTTP framework** | `Deno.serve()` — built-in, zero dependencies (see vision.md D3). Replaced Oak during Phase 2 implementation. |
 | **Containerization** | Single-stage Dockerfile → distroless or Alpine image |
 | **Deployment** | `docker run` or `docker compose up` — single container, single port |
 | **Process model** | Single process, no external workers needed |
@@ -37,7 +37,7 @@ Deno compiles to a single executable via `deno compile`, or runs directly from s
 
 | Aspect | Decision |
 |---|---|
-| **Engine** | SQLite (via `deno:sqlite` — native Deno bindings) |
+| **Engine** | SQLite (via `deno.land/x/sqlite` v3.9.1 — NOT `deno:sqlite` which requires special permissions) |
 | **Mode** | WAL (Write-Ahead Logging) for concurrent read/write |
 | **Storage** | File-based (`/data/seb-monitor.db`) mounted as a Docker volume |
 | **Migrations** | Simple migration files applied at startup |
@@ -144,6 +144,7 @@ CREATE TABLE heartbeats (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id      TEXT NOT NULL REFERENCES sessions(session_id),
     timestamp       INTEGER NOT NULL,
+    question_id     TEXT NOT NULL DEFAULT 'default',  -- Added in v0.3.0
 
     -- Focus metrics
     focused_time_ms   INTEGER NOT NULL DEFAULT 0,
@@ -191,7 +192,8 @@ CREATE INDEX idx_events_session ON events(session_id);
 CREATE INDEX idx_events_type ON events(type);
 
 -- Paste content store (most sensitive data — isolated for access control + retention)
-CREATE TABLE paste_contents (
+-- NOTE: No FK on session_id — paste arrives immediately, may precede session creation (see vision.md D4)
+CREATE TABLE IF NOT EXISTS paste_contents (
     hash            TEXT PRIMARY KEY,         -- SHA-256 of pasted text (dedup key)
     session_id      TEXT NOT NULL REFERENCES sessions(session_id),
     content         TEXT NOT NULL,            -- The actual pasted text
@@ -261,7 +263,7 @@ CREATE INDEX idx_paste_contents_exam ON paste_contents(exam_id);
 
 ## 5. Implementation Phases
 
-### Phase 1 — Client Library (MVP)
+### Phase 1 — Client Library (MVP) ✅ COMPLETE (v0.1.0)
 
 **Goal**: A working `seb-monitor.js` that captures events and sends heartbeats.
 
@@ -279,7 +281,7 @@ CREATE INDEX idx_paste_contents_exam ON paste_contents(exam_id);
 
 **Deliverable**: `dist/seb-monitor.js` — a single ~15 KB file ready to embed.
 
-### Phase 2 — Server Core
+### Phase 2 — Server Core ✅ COMPLETE (v0.2.0 + v0.3.0)
 
 **Goal**: A running Deno server that receives and stores heartbeats.
 
@@ -356,8 +358,8 @@ CREATE INDEX idx_paste_contents_exam ON paste_contents(exam_id);
 
 | # | Task | Details |
 |---|---|---|
-| 6.1 | Moodle HTML template | Add `<script>` tag to SEB exam template pointing to hosted `seb-monitor.js` |
-| 6.2 | Verify DOM reader | Ensure `#theuser`, `#themodule`, `#theexam` are populated by Moodle before script runs |
+| 6.1 | Moodle HTML template | Add `<script>` tag with `data-*` attributes to SEB exam template |
+| 6.2 | Verify DOM reader | Client auto-discovers script via `querySelector("script[data-student-id]")` — no hidden DOM elements needed |
 | 6.3 | CORS configuration | If client and server are on different origins, configure CORS headers |
 | 6.4 | HTTPS setup | Ensure server is behind a reverse proxy (nginx/Apache) with TLS |
 | 6.5 | Load test | Simulate 50 concurrent students sending heartbeats |
@@ -387,7 +389,7 @@ All configuration via environment variables (with defaults):
 
 | # | Question | Options | Recommendation |
 |---|---|---|---|
-| Q1 | **Client: where is the `questionId` set?** | Hardcoded in script / CSS class / data attribute | Use `data-question-id` attribute on the `<script>` tag or a `<meta>` tag |
+| Q1 | **Client: where is the `questionId` set?** | Hardcoded in script / CSS class / data attribute | ✅ **RESOLVED**: `data-question-id` attribute on `<script>` tag, with automatic fallback to Moodle `slot` URL param (see vision.md D2) |
 | Q2 | **Server: Deno compile vs. source?** | `deno compile` → single binary in Docker / `deno run` in Docker | `deno run` with cached deps — simpler, smaller image, debuggable |
 | Q3 | **Dashboard: one password for all exams?** | Single password / per-exam passwords / SSO | Single password initially; per-exam passwords if needed later |
 | Q4 | **Client: what DOM elements contain answer fields?** | Moodle textareas / rich text editors / specific CSS selectors | Need to inspect the actual SEB exam page to identify `textarea`, `div[contenteditable]`, or Moodle-specific selectors |
