@@ -3,6 +3,7 @@
  * Server-side rendered inside the layout shell.
  */
 import { renderLayout } from "./layout.ts";
+import { escapeHtml } from "./utils.ts";
 
 export function renderLoginPage(error?: string): string {
   const errorHtml = error
@@ -24,12 +25,4 @@ export function renderLoginPage(error?: string): string {
     </div>`;
 
   return renderLayout("Login — SEB Monitor", content);
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

@@ -3,6 +3,7 @@
  * Server-side rendered inside the layout shell.
  */
 import { renderLayout } from "./layout.ts";
+import { escapeHtml } from "./utils.ts";
 import type { ExamSummaryEntry } from "../services/metrics.ts";
 
 export function renderExamList(examId: string, students: ExamSummaryEntry[]): string {
@@ -32,28 +33,22 @@ export function renderExamList(examId: string, students: ExamSummaryEntry[]): st
   return renderLayout(`Exam ${examId} — SEB Monitor`, content);
 }
 
+/** Badge class based on value thresholds. */
+function badgeClass(value: number, goodMax: number, warnMax: number): string {
+  return value <= goodMax ? "badge-good" : value <= warnMax ? "badge-warn" : "badge-bad";
+}
+
 function renderStudentRow(examId: string, student: ExamSummaryEntry): string {
   const focusPct = Math.round(student.focusRatio * 100);
   const pastePct = Math.round(student.pasteRatio * 100);
 
-  const focusBadge = focusPct >= 90 ? "badge-good" : focusPct >= 50 ? "badge-warn" : "badge-bad";
-  const pasteBadge = pastePct <= 20 ? "badge-good" : pastePct <= 50 ? "badge-warn" : "badge-bad";
-
   return `<tr>
     <td><a href="/dashboard/${escapeHtml(examId)}/student/${escapeHtml(student.sessionId)}">${escapeHtml(student.studentId)}</a></td>
-    <td><span class="badge ${focusBadge}">${focusPct}%</span></td>
-    <td><span class="badge ${pasteBadge}">${pastePct}%</span></td>
+    <td><span class="badge ${badgeClass(100 - focusPct, 10, 50)}">${focusPct}%</span></td>
+    <td><span class="badge ${badgeClass(pastePct, 20, 50)}">${pastePct}%</span></td>
     <td>${student.totalCopyCount}</td>
     <td>${student.totalPasteCount}</td>
     <td>${student.unmatchedPasteCount > 0 ? `<span class="badge badge-warn">${student.unmatchedPasteCount}</span>` : "0"}</td>
     <td>${student.largestPasteLength > 0 ? `${student.largestPasteLength} chars` : "—"}</td>
   </tr>`;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
