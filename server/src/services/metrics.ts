@@ -16,16 +16,9 @@ export interface SessionMetrics {
   largestPasteHash: string;
 }
 
-export interface ExamSummaryEntry {
+export interface ExamSummaryEntry extends SessionMetrics {
   sessionId: string;
   studentId: string;
-  focusRatio: number;
-  pasteRatio: number;
-  totalCopyCount: number;
-  totalPasteCount: number;
-  unmatchedPasteCount: number;
-  largestPasteLength: number;
-  largestPasteHash: string;
 }
 
 // ===== Query helpers =====
