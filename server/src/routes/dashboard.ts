@@ -9,29 +9,9 @@ import { verifyCookie } from "../services/auth.ts";
 import { computeExamSummary } from "../services/metrics.ts";
 import { renderExamList } from "../views/exam-list.ts";
 import { renderStudentDetail } from "../views/student-detail.ts";
+import { html, redirect, extractParam } from "./utils.ts";
 
 const COOKIE_NAME = "seb_auth";
-
-function redirect(location: string): Response {
-  return new Response(null, {
-    status: 302,
-    headers: { location },
-  });
-}
-
-function html(content: string, status = 200): Response {
-  return new Response(content, {
-    status,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
-}
-
-/** Extract a named parameter from a URL path using a regex pattern. */
-function extractParam(path: string, pattern: string, name: string): string | null {
-  const regex = new RegExp("^" + pattern.replace(/:(\w+)/g, "(?<$1>[^/]+)") + "$");
-  const match = path.match(regex);
-  return match?.groups?.[name] ?? null;
-}
 
 /**
  * Check if a request has a valid auth cookie.

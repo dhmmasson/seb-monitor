@@ -4,20 +4,10 @@
  */
 import type { DB } from "sqlite";
 import { renderLoginPage } from "../views/login.ts";
-import { hashPassword, verifyPassword, signCookie } from "../services/auth.ts";
+import { hashPassword, signCookie, verifyPassword } from "../services/auth.ts";
+import { html, redirect } from "./utils.ts";
 
 const COOKIE_NAME = "seb_auth";
-
-function html(content: string, status = 200): Response {
-  return new Response(content, {
-    status,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
-}
-
-function redirect(location: string, headers: HeadersInit = {}): Response {
-  return new Response(null, { status: 302, headers: { location, ...headers } });
-}
 
 function parseFormData(body: string): string {
   const params = new URLSearchParams(body);
@@ -65,7 +55,8 @@ export function createAuthHandler(
       // Set signed auth cookie and redirect to dashboard
       const signedValue = await signCookie("authenticated", secret);
       return redirect("/dashboard", {
-        "Set-Cookie": `${COOKIE_NAME}=${signedValue}; Path=/; HttpOnly; SameSite=Strict`,
+        "Set-Cookie":
+          `${COOKIE_NAME}=${signedValue}; Path=/; HttpOnly; SameSite=Strict`,
       });
     }
 
@@ -83,7 +74,9 @@ export async function initPasswordHash(): Promise<string> {
 
   const password = Deno.env.get("DASHBOARD_PASSWORD");
   if (!password) {
-    throw new Error("Either DASHBOARD_PASSWORD or DASHBOARD_PASSWORD_HASH must be set");
+    throw new Error(
+      "Either DASHBOARD_PASSWORD or DASHBOARD_PASSWORD_HASH must be set",
+    );
   }
 
   return await hashPassword(password);
