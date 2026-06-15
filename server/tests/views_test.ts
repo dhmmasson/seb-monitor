@@ -1,0 +1,106 @@
+/**
+ * Tests for SSR view rendering — layout, login, exam-list.
+ * RED phase: these tests should fail until implementation exists.
+ */
+import { assertEquals, assertExists } from "@std/assert";
+import { renderLayout } from "../src/views/layout.ts";
+import { renderLoginPage } from "../src/views/login.ts";
+import { renderExamList } from "../src/views/exam-list.ts";
+import type { ExamSummaryEntry } from "../src/services/metrics.ts";
+
+// ===== Layout =====
+
+Deno.test("renderLayout: wraps content in HTML structure with title", () => {
+  const html = renderLayout("Test Page", "<p>Hello</p>");
+  assertExists(html, "should return HTML string");
+  assertEquals(html.includes("<!DOCTYPE html>"), true, "should include doctype");
+  assertEquals(html.includes("<title>Test Page</title>"), true, "should include title");
+  assertEquals(html.includes("<p>Hello</p>"), true, "should include content");
+  assertEquals(html.includes("</html>"), true, "should close html tag");
+});
+
+Deno.test("renderLayout: includes meta charset and viewport", () => {
+  const html = renderLayout("Test", "<p>X</p>");
+  assertEquals(html.includes('charset="UTF-8"'), true, "should include charset");
+  assertEquals(html.includes('name="viewport"'), true, "should include viewport meta");
+});
+
+Deno.test("renderLayout: includes minimal embedded CSS", () => {
+  const html = renderLayout("Test", "<p>X</p>");
+  assertEquals(html.includes("<style>"), true, "should include style tag");
+});
+
+// ===== Login Page =====
+
+Deno.test("renderLoginPage: returns a full page with login form", () => {
+  const html = renderLoginPage();
+  assertEquals(html.includes("<!DOCTYPE html>"), true, "should be full page");
+  assertEquals(html.includes('method="POST"'), true, "form should use POST");
+  assertEquals(html.includes('type="password"'), true, "should have password field");
+  assertEquals(html.includes('type="submit"'), true, "should have submit button");
+});
+
+Deno.test("renderLoginPage: shows error message when provided", () => {
+  const html = renderLoginPage("Invalid password");
+  assertEquals(html.includes("Invalid password"), true, "should display error message");
+});
+
+Deno.test("renderLoginPage: no error when not provided", () => {
+  const html = renderLoginPage();
+  assertEquals(html.includes("error-message"), false, "should not show error div");
+});
+
+// ===== Exam List =====
+
+Deno.test("renderExamList: renders student rows in a table", () => {
+  const students: ExamSummaryEntry[] = [
+    {
+      sessionId: "s1", studentId: "Alice", focusRatio: 0.95, pasteRatio: 0.1,
+      totalCopyCount: 2, totalPasteCount: 1, unmatchedPasteCount: 0,
+      largestPasteLength: 50, largestPasteHash: "aaa",
+    },
+    {
+      sessionId: "s2", studentId: "Bob", focusRatio: 0.5, pasteRatio: 0.8,
+      totalCopyCount: 0, totalPasteCount: 5, unmatchedPasteCount: 3,
+      largestPasteLength: 500, largestPasteHash: "bbb",
+    },
+  ];
+  const html = renderExamList("exam-1", students);
+  assertExists(html, "should return HTML");
+  assertEquals(html.includes("Alice"), true, "should include Alice");
+  assertEquals(html.includes("Bob"), true, "should include Bob");
+  assertEquals(html.includes("<table"), true, "should include a table");
+});
+
+Deno.test("renderExamList: shows focus ratio as percentage", () => {
+  const students: ExamSummaryEntry[] = [
+    {
+      sessionId: "s1", studentId: "Alice", focusRatio: 0.95, pasteRatio: 0.1,
+      totalCopyCount: 0, totalPasteCount: 0, unmatchedPasteCount: 0,
+      largestPasteLength: 0, largestPasteHash: "",
+    },
+  ];
+  const html = renderExamList("exam-1", students);
+  assertEquals(html.includes("95"), true, "should show 95% focus ratio");
+});
+
+Deno.test("renderExamList: links to student detail page", () => {
+  const students: ExamSummaryEntry[] = [
+    {
+      sessionId: "s1", studentId: "Alice", focusRatio: 0.9, pasteRatio: 0.0,
+      totalCopyCount: 0, totalPasteCount: 0, unmatchedPasteCount: 0,
+      largestPasteLength: 0, largestPasteHash: "",
+    },
+  ];
+  const html = renderExamList("exam-uuid-123", students);
+  assertEquals(
+    html.includes("/dashboard/exam-uuid-123/student/s1"),
+    true,
+    "should link to student detail page",
+  );
+});
+
+Deno.test("renderExamList: handles empty student list", () => {
+  const html = renderExamList("exam-1", []);
+  assertEquals(html.includes("No students"), true, "should show empty state message");
+});
