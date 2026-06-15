@@ -6,6 +6,7 @@ import { assertEquals, assertExists } from "@std/assert";
 import { renderLayout } from "../src/views/layout.ts";
 import { renderLoginPage } from "../src/views/login.ts";
 import { renderExamList } from "../src/views/exam-list.ts";
+import { encodeExamId } from "../src/routes/url-ids.ts";
 import type { ExamSummaryEntry } from "../src/services/metrics.ts";
 
 // ===== Layout =====
@@ -150,10 +151,11 @@ Deno.test("renderExamList: links to student detail page", () => {
     },
   ];
   const html = renderExamList("exam-uuid-123", students);
+  const encodedId = encodeExamId("exam-uuid-123");
   assertEquals(
-    html.includes("/dashboard/exam-uuid-123/student/s1"),
+    html.includes(`/dashboard/${encodedId}/student/s1`),
     true,
-    "should link to student detail page",
+    `should link to /dashboard/${encodedId}/student/s1`,
   );
 });
 

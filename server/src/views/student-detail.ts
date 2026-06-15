@@ -7,6 +7,7 @@ import { renderLayout } from "./layout.ts";
 import { escapeHtml } from "./utils.ts";
 import { computeSessionMetrics } from "../services/metrics.ts";
 import { queryAll } from "../db/utils.ts";
+import { encodeExamId } from "../routes/url-ids.ts";
 
 interface HeartbeatRow {
   timestamp: number;
@@ -155,7 +156,7 @@ export function renderStudentDetail(
     </div>
     ${eventsHtml}
     <p style="margin-top: 1rem;"><a href="/dashboard/${
-    escapeHtml(examId)
+    escapeHtml(encodeExamId(examId))
   }">← Back to exam overview</a></p>`;
 
   return renderLayout(`${studentId} — SEB Monitor`, content);

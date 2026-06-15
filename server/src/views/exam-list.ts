@@ -4,6 +4,7 @@
  */
 import { renderLayout } from "./layout.ts";
 import { escapeHtml } from "./utils.ts";
+import { encodeExamId } from "../routes/url-ids.ts";
 import type { ExamSummaryEntry } from "../services/metrics.ts";
 
 export function renderExamList(
@@ -48,9 +49,10 @@ function badgeClass(value: number, goodMax: number, warnMax: number): string {
 function renderStudentRow(examId: string, student: ExamSummaryEntry): string {
   const focusPct = Math.round(student.focusRatio * 100);
   const pastePct = Math.round(student.pasteRatio * 100);
+  const encodedExamId = encodeExamId(examId);
 
   return `<tr>
-    <td><a href="/dashboard/${escapeHtml(examId)}/student/${
+    <td><a href="/dashboard/${escapeHtml(encodedExamId)}/student/${
     escapeHtml(student.sessionId)
   }">${escapeHtml(student.studentId)}</a></td>
     <td><span class="badge ${

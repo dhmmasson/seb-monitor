@@ -11,6 +11,7 @@ import { renderExamList } from "../views/exam-list.ts";
 import { renderStudentDetail } from "../views/student-detail.ts";
 import { renderExamIndex } from "../views/exam-index.ts";
 import { html, redirect, extractParam } from "./utils.ts";
+import { decodeExamId } from "./url-ids.ts";
 
 const COOKIE_NAME = "seb_auth";
 
@@ -59,8 +60,9 @@ export function createDashboardHandler(
     // GET /dashboard/:examId — exam overview
     const examId = extractParam(path, "/dashboard/:examId", "examId");
     if (examId && !path.includes("/student/")) {
-      const students = computeExamSummary(db, examId);
-      return html(renderExamList(examId, students));
+      const decodedExamId = decodeExamId(examId);
+      const students = computeExamSummary(db, decodedExamId);
+      return html(renderExamList(decodedExamId, students));
     }
 
     // GET /dashboard/:examId/student/:sessionId — student detail
@@ -75,7 +77,8 @@ export function createDashboardHandler(
       "sessionId",
     );
     if (eId && sId) {
-      return html(renderStudentDetail(db, eId, sId));
+      const decodedEId = decodeExamId(eId);
+      return html(renderStudentDetail(db, decodedEId, sId));
     }
 
     return new Response("Not found", { status: 404 });

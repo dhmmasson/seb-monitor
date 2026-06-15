@@ -9,6 +9,7 @@ import { closeTestDb, createTestDb } from "./helpers.ts";
 import { hashPassword } from "../src/services/auth.ts";
 import { findOrCreate } from "../src/db/sessions.ts";
 import { insertHeartbeat } from "../src/db/heartbeats.ts";
+import { encodeExamId } from "../src/routes/url-ids.ts";
 import type { HeartbeatPayload } from "../../shared/types.ts";
 
 function makeHeartbeat(
@@ -232,7 +233,7 @@ Deno.test("GET /dashboard: shows exam index with all exams when multiple exist",
     assertEquals(html.includes("exam-1"), true, "should list exam-1");
     assertEquals(html.includes("exam-2"), true, "should list exam-2");
     assertEquals(
-      html.includes("/dashboard/exam-1"),
+      html.includes(`/dashboard/${encodeExamId("exam-1")}`),
       true,
       "should link to exam-1",
     );

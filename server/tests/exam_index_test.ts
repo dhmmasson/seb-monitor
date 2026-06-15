@@ -4,6 +4,7 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import { renderExamIndex } from "../src/views/exam-index.ts";
+import { encodeExamId } from "../src/routes/url-ids.ts";
 import { createTestDb, closeTestDb } from "./helpers.ts";
 import { findOrCreate } from "../src/db/sessions.ts";
 import { insertHeartbeat } from "../src/db/heartbeats.ts";
@@ -102,10 +103,11 @@ Deno.test("renderExamIndex: links to individual exam pages", () => {
     insertHeartbeat(db, s.sessionId, makeHeartbeat());
 
     const html = renderExamIndex(db);
+    const encodedId = encodeExamId("exam-1");
     assertEquals(
-      html.includes("/dashboard/exam-1"),
+      html.includes(`/dashboard/${encodedId}`),
       true,
-      "should link to exam page",
+      `should link to /dashboard/${encodedId}`,
     );
   } finally {
     closeTestDb(db);

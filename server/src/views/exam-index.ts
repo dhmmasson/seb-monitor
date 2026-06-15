@@ -6,6 +6,7 @@ import type { DB } from "sqlite";
 import { renderLayout } from "./layout.ts";
 import { escapeHtml } from "./utils.ts";
 import { queryAll } from "../db/utils.ts";
+import { encodeExamId } from "../routes/url-ids.ts";
 
 /**
  * Render the exam index page — a table of all exams with student counts.
@@ -22,11 +23,15 @@ export function renderExamIndex(db: DB): string {
   const tableRows = rows.length > 0
     ? rows
       .map(
-        (r) => `
+        (r) => {
+          const examId = r[0] as string;
+          const encodedId = encodeExamId(examId);
+          return `
       <tr>
-        <td><a href="/dashboard/${escapeHtml(r[0] as string)}">${escapeHtml(r[0] as string)}</a></td>
+        <td><a href="/dashboard/${escapeHtml(encodedId)}">${escapeHtml(examId)}</a></td>
         <td>${r[1]}</td>
-      </tr>`,
+      </tr>`;
+        },
       )
       .join("")
     : `<tr><td colspan="2" class="empty-state">No exams found. Send some heartbeats first!</td></tr>`;
