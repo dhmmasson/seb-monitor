@@ -1,6 +1,6 @@
 /**
  * Dashboard routes — protected by cookie-based authentication.
- * GET /dashboard — exam list
+ * GET /dashboard — exam index (all exams with student counts)
  * GET /dashboard/:examId — exam overview with student table
  * GET /dashboard/:examId/student/:sessionId — student detail
  */
