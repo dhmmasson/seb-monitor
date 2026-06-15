@@ -316,7 +316,7 @@ CREATE INDEX idx_paste_contents_exam ON paste_contents(exam_id);
 
 **Deliverable**: `docker run seb-monitor` starts everything — client JS served at `/seb-monitor.js`, API at `/api/*`, dashboard at `/dashboard/*`.
 
-### Phase 4 — Dashboard UI
+### Phase 4 — Dashboard UI ✅ COMPLETE (v0.4.0)
 
 **Goal**: Instructor-facing dashboard behind password authentication.
 
