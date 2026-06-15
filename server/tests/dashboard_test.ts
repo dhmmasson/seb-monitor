@@ -193,3 +193,41 @@ Deno.test("GET /dashboard/:examId/student/:sessionId: redirects to login when no
     closeTestDb(db);
   }
 });
+
+Deno.test("GET /dashboard: shows exam index with all exams when multiple exist", async () => {
+  const db = createTestDb();
+  try {
+    const s1 = findOrCreate(db, "Alice", "exam-1");
+    const s2 = findOrCreate(db, "Charlie", "exam-2");
+    insertHeartbeat(db, s1.sessionId, makeHeartbeat({ studentId: "Alice" }));
+    insertHeartbeat(
+      db,
+      s2.sessionId,
+      makeHeartbeat({ studentId: "Charlie" }),
+    );
+
+    const app = createDashboardHandler(db, TEST_SECRET);
+    const { signCookie } = await import("../src/services/auth.ts");
+    const authCookie = await signCookie("authenticated", TEST_SECRET);
+
+    const resp = await sendRequest(app, "/dashboard", {
+      headers: { cookie: `seb_auth=${authCookie}` },
+    });
+    assertEquals(resp.status, 200);
+    const html = await resp.text();
+    assertEquals(
+      html.includes("All Exams"),
+      true,
+      "should show exam index heading",
+    );
+    assertEquals(html.includes("exam-1"), true, "should list exam-1");
+    assertEquals(html.includes("exam-2"), true, "should list exam-2");
+    assertEquals(
+      html.includes("/dashboard/exam-1"),
+      true,
+      "should link to exam-1",
+    );
+  } finally {
+    closeTestDb(db);
+  }
+});
