@@ -6,6 +6,7 @@ import type { DB } from "sqlite";
 import { renderLayout } from "./layout.ts";
 import { escapeHtml } from "./utils.ts";
 import { computeSessionMetrics } from "../services/metrics.ts";
+import { queryAll } from "../db/utils.ts";
 
 interface HeartbeatRow {
   timestamp: number;
@@ -32,15 +33,6 @@ interface PasteContentRow {
   content: string;
   length: number;
   timestamp: number;
-}
-
-function queryAll(db: DB, sql: string, args: unknown[] = []): unknown[][] {
-  const stmt = db.prepareQuery(sql);
-  try {
-    return [...stmt.all(args)];
-  } finally {
-    stmt.finalize();
-  }
 }
 
 function getStudentId(db: DB, sessionId: string): string {

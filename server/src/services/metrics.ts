@@ -3,6 +3,7 @@
  * Reads from the database and computes aggregated metrics per session and per exam.
  */
 import type { DB } from "sqlite";
+import { queryAll } from "../db/utils.ts";
 
 // ===== Types =====
 
@@ -19,17 +20,6 @@ export interface SessionMetrics {
 export interface ExamSummaryEntry extends SessionMetrics {
   sessionId: string;
   studentId: string;
-}
-
-// ===== Query helpers =====
-
-function queryAll(db: DB, sql: string, args: unknown[] = []): unknown[][] {
-  const stmt = db.prepareQuery(sql);
-  try {
-    return [...stmt.all(args)];
-  } finally {
-    stmt.finalize();
-  }
 }
 
 // ===== Session Metrics =====
