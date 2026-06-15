@@ -129,7 +129,7 @@ Deno.test("GET /dashboard: redirects to login when no cookie", async () => {
   }
 });
 
-Deno.test("GET /dashboard: returns exam list when authenticated", async () => {
+Deno.test("GET /dashboard: returns exam index when authenticated", async () => {
   const db = createTestDb();
   try {
     // Create some data
@@ -147,7 +147,16 @@ Deno.test("GET /dashboard: returns exam list when authenticated", async () => {
     assertEquals(resp.status, 200);
     const html = await resp.text();
     assertEquals(html.includes("<!DOCTYPE html>"), true, "should return HTML");
-    assertEquals(html.includes("student-1"), true, "should show student data");
+    assertEquals(
+      html.includes("All Exams"),
+      true,
+      "should show exam index heading",
+    );
+    assertEquals(
+      html.includes("exam-1"),
+      true,
+      "should show exam ID",
+    );
   } finally {
     closeTestDb(db);
   }

@@ -9,6 +9,7 @@ import { verifyCookie } from "../services/auth.ts";
 import { computeExamSummary } from "../services/metrics.ts";
 import { renderExamList } from "../views/exam-list.ts";
 import { renderStudentDetail } from "../views/student-detail.ts";
+import { renderExamIndex } from "../views/exam-index.ts";
 import { html, redirect, extractParam } from "./utils.ts";
 
 const COOKIE_NAME = "seb_auth";
@@ -50,21 +51,9 @@ export function createDashboardHandler(
       return redirect("/auth/login");
     }
 
-    // GET /dashboard — list all exams (for now, redirect to first exam or show overview)
+    // GET /dashboard — exam index showing all exams
     if (path === "/dashboard" || path === "/dashboard/") {
-      // Show all exams — find all unique exam_ids
-      const stmt = db.prepareQuery("SELECT DISTINCT exam_id FROM sessions");
-      try {
-        const examRows = [...stmt.all()];
-        if (examRows.length > 0) {
-          const examId = examRows[0][0] as string;
-          const students = computeExamSummary(db, examId);
-          return html(renderExamList(examId, students));
-        }
-        return html(renderExamList("", []));
-      } finally {
-        stmt.finalize();
-      }
+      return html(renderExamIndex(db));
     }
 
     // GET /dashboard/:examId — exam overview
