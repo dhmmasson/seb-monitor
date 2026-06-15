@@ -4,21 +4,31 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import { renderStudentDetail } from "../src/views/student-detail.ts";
-import { createTestDb, closeTestDb } from "./helpers.ts";
+import { closeTestDb, createTestDb } from "./helpers.ts";
 import { findOrCreate } from "../src/db/sessions.ts";
 import { insertHeartbeat } from "../src/db/heartbeats.ts";
 import { insertEvents } from "../src/db/events.ts";
 import { insertPasteContent } from "../src/db/paste_contents.ts";
-import type { HeartbeatPayload, PasteContentRequest } from "../../shared/types.ts";
+import type {
+  HeartbeatPayload,
+  PasteContentRequest,
+} from "../../shared/types.ts";
 
-function makeHeartbeat(overrides: Partial<HeartbeatPayload> = {}): HeartbeatPayload {
+function makeHeartbeat(
+  overrides: Partial<HeartbeatPayload> = {},
+): HeartbeatPayload {
   return {
     studentId: "student-1",
     examId: "exam-1",
     questionId: "q1",
     timestamp: Date.now(),
     focus: { focusedTimeMs: 58000, unfocusedTimeMs: 2000, blurCount: 1 },
-    input: { typedChars: 100, pastedChars: 50, deletedChars: 10, currentLength: 140 },
+    input: {
+      typedChars: 100,
+      pastedChars: 50,
+      deletedChars: 10,
+      currentLength: 140,
+    },
     keys: { keyDownCount: 200, ctrlCount: 2, altCount: 0, shiftCount: 20 },
     copyCount: 1,
     pasteCount: 1,
@@ -48,16 +58,33 @@ Deno.test("renderStudentDetail: shows metric summary cards", () => {
   const db = createTestDb();
   try {
     const session = findOrCreate(db, "Alice", "exam-1");
-    insertHeartbeat(db, session.sessionId, makeHeartbeat({
-      focus: { focusedTimeMs: 50000, unfocusedTimeMs: 10000, blurCount: 1 },
-      copyCount: 3, pasteCount: 2,
-    }));
+    insertHeartbeat(
+      db,
+      session.sessionId,
+      makeHeartbeat({
+        focus: { focusedTimeMs: 50000, unfocusedTimeMs: 10000, blurCount: 1 },
+        copyCount: 3,
+        pasteCount: 2,
+      }),
+    );
 
     const html = renderStudentDetail(db, "exam-1", session.sessionId);
-    assertEquals(html.includes("Focus Ratio"), true, "should show focus ratio label");
-    assertEquals(html.includes("Paste Ratio"), true, "should show paste ratio label");
+    assertEquals(
+      html.includes("Focus Ratio"),
+      true,
+      "should show focus ratio label",
+    );
+    assertEquals(
+      html.includes("Paste Ratio"),
+      true,
+      "should show paste ratio label",
+    );
     assertEquals(html.includes("Copies"), true, "should show copy count label");
-    assertEquals(html.includes("Pastes"), true, "should show paste count label");
+    assertEquals(
+      html.includes("Pastes"),
+      true,
+      "should show paste count label",
+    );
   } finally {
     closeTestDb(db);
   }
@@ -69,11 +96,19 @@ Deno.test("renderStudentDetail: includes Chart.js script for heartbeat timeline"
     const session = findOrCreate(db, "Alice", "exam-1");
     const now = Date.now();
     insertHeartbeat(db, session.sessionId, makeHeartbeat({ timestamp: now }));
-    insertHeartbeat(db, session.sessionId, makeHeartbeat({ timestamp: now + 60000 }));
+    insertHeartbeat(
+      db,
+      session.sessionId,
+      makeHeartbeat({ timestamp: now + 60000 }),
+    );
 
     const html = renderStudentDetail(db, "exam-1", session.sessionId);
     assertEquals(html.includes("Chart"), true, "should reference Chart.js");
-    assertEquals(html.includes("<canvas"), true, "should include canvas element");
+    assertEquals(
+      html.includes("<canvas"),
+      true,
+      "should include canvas element",
+    );
   } finally {
     closeTestDb(db);
   }
@@ -86,12 +121,22 @@ Deno.test("renderStudentDetail: renders events table", () => {
     insertHeartbeat(db, session.sessionId, makeHeartbeat());
     insertEvents(db, session.sessionId, [
       { type: "copy", timestamp: 1000, hash: "aaa", length: 10 },
-      { type: "paste", timestamp: 2000, hash: "bbb", length: 200, matchedCopyHash: null },
+      {
+        type: "paste",
+        timestamp: 2000,
+        hash: "bbb",
+        length: 200,
+        matchedCopyHash: null,
+      },
       { type: "focus", timestamp: 3000 },
     ]);
 
     const html = renderStudentDetail(db, "exam-1", session.sessionId);
-    assertEquals(html.includes("Events"), true, "should include events section");
+    assertEquals(
+      html.includes("Events"),
+      true,
+      "should include events section",
+    );
     assertEquals(html.includes("copy"), true, "should show copy events");
     assertEquals(html.includes("paste"), true, "should show paste events");
     assertEquals(html.includes("focus"), true, "should show focus events");
@@ -106,18 +151,36 @@ Deno.test("renderStudentDetail: shows paste content expand for stored pastes", (
     const session = findOrCreate(db, "Alice", "exam-1");
     insertHeartbeat(db, session.sessionId, makeHeartbeat());
     const paste: PasteContentRequest = {
-      hash: "abc123", content: "Hello world pasted text", length: 22,
-      sessionId: session.sessionId, examId: "exam-1", timestamp: 1000,
+      hash: "abc123",
+      content: "Hello world pasted text",
+      length: 22,
+      sessionId: session.sessionId,
+      examId: "exam-1",
+      timestamp: 1000,
     };
     insertPasteContent(db, paste);
     insertEvents(db, session.sessionId, [
-      { type: "paste", timestamp: 1000, hash: "abc123", length: 22, matchedCopyHash: null },
+      {
+        type: "paste",
+        timestamp: 1000,
+        hash: "abc123",
+        length: 22,
+        matchedCopyHash: null,
+      },
     ]);
 
     const html = renderStudentDetail(db, "exam-1", session.sessionId);
     assertEquals(html.includes("abc123"), true, "should include paste hash");
-    assertEquals(html.includes("paste-expand"), true, "should include expandable paste element");
-    assertEquals(html.includes("Hello world pasted text"), true, "should include paste content");
+    assertEquals(
+      html.includes("paste-expand"),
+      true,
+      "should include expandable paste element",
+    );
+    assertEquals(
+      html.includes("Hello world pasted text"),
+      true,
+      "should include paste content",
+    );
   } finally {
     closeTestDb(db);
   }
@@ -129,12 +192,28 @@ Deno.test("renderStudentDetail: highlights unmatched pastes", () => {
     const session = findOrCreate(db, "Alice", "exam-1");
     insertHeartbeat(db, session.sessionId, makeHeartbeat());
     insertEvents(db, session.sessionId, [
-      { type: "paste", timestamp: 1000, hash: "aaa", length: 10, matchedCopyHash: null },
-      { type: "paste", timestamp: 2000, hash: "bbb", length: 20, matchedCopyHash: "xxx" },
+      {
+        type: "paste",
+        timestamp: 1000,
+        hash: "aaa",
+        length: 10,
+        matchedCopyHash: null,
+      },
+      {
+        type: "paste",
+        timestamp: 2000,
+        hash: "bbb",
+        length: 20,
+        matchedCopyHash: "xxx",
+      },
     ]);
 
     const html = renderStudentDetail(db, "exam-1", session.sessionId);
-    assertEquals(html.includes("highlight-unmatched"), true, "should highlight unmatched pastes");
+    assertEquals(
+      html.includes("highlight-unmatched"),
+      true,
+      "should highlight unmatched pastes",
+    );
   } finally {
     closeTestDb(db);
   }
@@ -148,7 +227,11 @@ Deno.test("renderStudentDetail: handles session with no data", () => {
 
     const html = renderStudentDetail(db, "exam-1", session.sessionId);
     assertEquals(html.includes("Alice"), true, "should still show student ID");
-    assertEquals(html.includes("No heartbeats"), true, "should show empty state for no heartbeats");
+    assertEquals(
+      html.includes("No heartbeats"),
+      true,
+      "should show empty state for no heartbeats",
+    );
   } finally {
     closeTestDb(db);
   }

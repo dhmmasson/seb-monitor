@@ -144,4 +144,4 @@ sebMonitoring/
 
 ## License
 
-Internal use — University of [your institution]
+MIT 

@@ -27,9 +27,13 @@ export interface ExamSummaryEntry extends SessionMetrics {
 /**
  * Compute derived metrics for a single session from its heartbeats, events, and paste contents.
  */
-export function computeSessionMetrics(db: DB, sessionId: string): SessionMetrics {
+export function computeSessionMetrics(
+  db: DB,
+  sessionId: string,
+): SessionMetrics {
   // Aggregate heartbeats
-  const hbRows = queryAll(db,
+  const hbRows = queryAll(
+    db,
     `SELECT
        COALESCE(SUM(focused_time_ms), 0) AS focused,
        COALESCE(SUM(unfocused_time_ms), 0) AS unfocused,
@@ -57,7 +61,8 @@ export function computeSessionMetrics(db: DB, sessionId: string): SessionMetrics
   const pasteRatio = totalInput > 0 ? pastedChars / totalInput : 0;
 
   // Count unmatched pastes from events
-  const unmatchedRows = queryAll(db,
+  const unmatchedRows = queryAll(
+    db,
     `SELECT COUNT(*) FROM events
      WHERE session_id = ? AND type = 'paste' AND matched_copy_hash IS NULL`,
     [sessionId],
@@ -65,7 +70,8 @@ export function computeSessionMetrics(db: DB, sessionId: string): SessionMetrics
   const unmatchedPasteCount = Number(unmatchedRows[0]?.[0] ?? 0);
 
   // Largest paste from stored content
-  const largestRows = queryAll(db,
+  const largestRows = queryAll(
+    db,
     `SELECT hash, length FROM paste_contents
      WHERE session_id = ? ORDER BY length DESC LIMIT 1`,
     [sessionId],
@@ -90,7 +96,8 @@ export function computeSessionMetrics(db: DB, sessionId: string): SessionMetrics
  * Compute per-student metrics for all sessions in an exam.
  */
 export function computeExamSummary(db: DB, examId: string): ExamSummaryEntry[] {
-  const sessionRows = queryAll(db,
+  const sessionRows = queryAll(
+    db,
     "SELECT session_id, student_id FROM sessions WHERE exam_id = ?",
     [examId],
   );

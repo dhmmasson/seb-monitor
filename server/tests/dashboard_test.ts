@@ -5,20 +5,27 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { createDashboardHandler } from "../src/routes/dashboard.ts";
 import { createAuthHandler } from "../src/routes/auth.ts";
-import { createTestDb, closeTestDb } from "./helpers.ts";
+import { closeTestDb, createTestDb } from "./helpers.ts";
 import { hashPassword } from "../src/services/auth.ts";
 import { findOrCreate } from "../src/db/sessions.ts";
 import { insertHeartbeat } from "../src/db/heartbeats.ts";
 import type { HeartbeatPayload } from "../../shared/types.ts";
 
-function makeHeartbeat(overrides: Partial<HeartbeatPayload> = {}): HeartbeatPayload {
+function makeHeartbeat(
+  overrides: Partial<HeartbeatPayload> = {},
+): HeartbeatPayload {
   return {
     studentId: "student-1",
     examId: "exam-1",
     questionId: "q1",
     timestamp: Date.now(),
     focus: { focusedTimeMs: 58000, unfocusedTimeMs: 2000, blurCount: 1 },
-    input: { typedChars: 100, pastedChars: 50, deletedChars: 10, currentLength: 140 },
+    input: {
+      typedChars: 100,
+      pastedChars: 50,
+      deletedChars: 10,
+      currentLength: 140,
+    },
     keys: { keyDownCount: 200, ctrlCount: 2, altCount: 0, shiftCount: 20 },
     copyCount: 1,
     pasteCount: 1,
@@ -48,8 +55,16 @@ Deno.test("GET /auth/login: returns login page HTML", async () => {
     const resp = await sendRequest(app, "/auth/login");
     assertEquals(resp.status, 200);
     const html = await resp.text();
-    assertEquals(html.includes("<!DOCTYPE html>"), true, "should return HTML page");
-    assertEquals(html.includes('type="password"'), true, "should have password field");
+    assertEquals(
+      html.includes("<!DOCTYPE html>"),
+      true,
+      "should return HTML page",
+    );
+    assertEquals(
+      html.includes('type="password"'),
+      true,
+      "should have password field",
+    );
   } finally {
     closeTestDb(db);
   }
@@ -71,7 +86,11 @@ Deno.test("POST /auth/login: sets auth cookie on correct password and redirects"
     assertEquals(location, "/dashboard", "should redirect to dashboard");
     const setCookie = resp.headers.get("set-cookie");
     assertExists(setCookie, "should set a cookie");
-    assertEquals(setCookie.includes("seb_auth="), true, "cookie should be seb_auth");
+    assertEquals(
+      setCookie.includes("seb_auth="),
+      true,
+      "cookie should be seb_auth",
+    );
   } finally {
     closeTestDb(db);
   }
@@ -164,7 +183,10 @@ Deno.test("GET /dashboard/:examId/student/:sessionId: redirects to login when no
   try {
     const session = findOrCreate(db, "Alice", "exam-1");
     const app = createDashboardHandler(db, TEST_SECRET);
-    const resp = await sendRequest(app, `/dashboard/exam-1/student/${session.sessionId}`);
+    const resp = await sendRequest(
+      app,
+      `/dashboard/exam-1/student/${session.sessionId}`,
+    );
     assertEquals(resp.status, 302, "should redirect");
     assertEquals(resp.headers.get("location"), "/auth/login");
   } finally {

@@ -45,7 +45,9 @@ export async function hashPassword(password: string): Promise<string> {
     HASH_LENGTH * 8,
   );
 
-  return `${ITERATIONS}.${toBase64(salt)}.${toBase64(new Uint8Array(hashBuffer))}`;
+  return `${ITERATIONS}.${toBase64(salt)}.${
+    toBase64(new Uint8Array(hashBuffer))
+  }`;
 }
 
 /**
@@ -95,7 +97,10 @@ function hmacKey(secret: string): Promise<CryptoKey> {
  * Sign a cookie value using HMAC-SHA256.
  * Returns format: "value.base64signature"
  */
-export async function signCookie(value: string, secret: string): Promise<string> {
+export async function signCookie(
+  value: string,
+  secret: string,
+): Promise<string> {
   const key = await hmacKey(secret);
   const signatureBuffer = await crypto.subtle.sign(
     HMAC,

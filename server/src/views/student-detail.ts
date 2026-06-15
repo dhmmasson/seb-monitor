@@ -36,12 +36,17 @@ interface PasteContentRow {
 }
 
 function getStudentId(db: DB, sessionId: string): string {
-  const rows = queryAll(db, "SELECT student_id FROM sessions WHERE session_id = ?", [sessionId]);
+  const rows = queryAll(
+    db,
+    "SELECT student_id FROM sessions WHERE session_id = ?",
+    [sessionId],
+  );
   return (rows[0]?.[0] as string) ?? "Unknown";
 }
 
 function getHeartbeats(db: DB, sessionId: string): HeartbeatRow[] {
-  return queryAll(db,
+  return queryAll(
+    db,
     `SELECT timestamp, focused_time_ms, unfocused_time_ms, blur_count,
             typed_chars, pasted_chars, deleted_chars, copy_count, paste_count
      FROM heartbeats WHERE session_id = ? ORDER BY timestamp`,
@@ -60,7 +65,8 @@ function getHeartbeats(db: DB, sessionId: string): HeartbeatRow[] {
 }
 
 function getEvents(db: DB, sessionId: string): EventRow[] {
-  return queryAll(db,
+  return queryAll(
+    db,
     "SELECT type, timestamp, hash, length, matched_copy_hash FROM events WHERE session_id = ? ORDER BY timestamp",
     [sessionId],
   ).map((r) => ({
@@ -72,12 +78,18 @@ function getEvents(db: DB, sessionId: string): EventRow[] {
   }));
 }
 
-function getPasteContents(db: DB, sessionId: string): Map<string, PasteContentRow> {
+function getPasteContents(
+  db: DB,
+  sessionId: string,
+): Map<string, PasteContentRow> {
   const map = new Map<string, PasteContentRow>();
-  for (const r of queryAll(db,
-    "SELECT hash, content, length, timestamp FROM paste_contents WHERE session_id = ?",
-    [sessionId],
-  )) {
+  for (
+    const r of queryAll(
+      db,
+      "SELECT hash, content, length, timestamp FROM paste_contents WHERE session_id = ?",
+      [sessionId],
+    )
+  ) {
     map.set(r[0] as string, {
       hash: r[0] as string,
       content: r[1] as string,
@@ -113,25 +125,38 @@ export function renderStudentDetail(
       ${metricCard(String(metrics.totalCopyCount), "Copies")}
       ${metricCard(String(metrics.totalPasteCount), "Pastes")}
       ${metricCard(String(metrics.unmatchedPasteCount), "Unmatched")}
-      ${metricCard(metrics.largestPasteLength > 0 ? `${metrics.largestPasteLength} chars` : "—", "Largest Paste")}
+      ${
+    metricCard(
+      metrics.largestPasteLength > 0
+        ? `${metrics.largestPasteLength} chars`
+        : "—",
+      "Largest Paste",
+    )
+  }
     </div>`;
 
   // Chart section
-  const chartHtml = heartbeats.length > 0 ? renderChartSection(heartbeats) : '<p class="empty-state">No heartbeats recorded yet.</p>';
+  const chartHtml = heartbeats.length > 0
+    ? renderChartSection(heartbeats)
+    : '<p class="empty-state">No heartbeats recorded yet.</p>';
 
   // Events table
   const eventsHtml = renderEventsTable(events, pasteContents);
 
   const content = `
     <h1 style="margin-bottom: 0.5rem;">👤 ${escapeHtml(studentId)}</h1>
-    <p style="color: #666; margin-bottom: 1.5rem;">Session: ${escapeHtml(sessionId)}</p>
+    <p style="color: #666; margin-bottom: 1.5rem;">Session: ${
+    escapeHtml(sessionId)
+  }</p>
     ${cardsHtml}
     <div class="card" style="margin-bottom: 1.5rem;">
       <h2 style="margin-bottom: 1rem;">📈 Activity Timeline</h2>
       ${chartHtml}
     </div>
     ${eventsHtml}
-    <p style="margin-top: 1rem;"><a href="/dashboard/${escapeHtml(examId)}">← Back to exam overview</a></p>`;
+    <p style="margin-top: 1rem;"><a href="/dashboard/${
+    escapeHtml(examId)
+  }">← Back to exam overview</a></p>`;
 
   return renderLayout(`${studentId} — SEB Monitor`, content);
 }
@@ -144,7 +169,9 @@ function metricCard(value: string, label: string): string {
 }
 
 function renderChartSection(heartbeats: HeartbeatRow[]): string {
-  const labels = heartbeats.map((h) => new Date(h.timestamp).toLocaleTimeString());
+  const labels = heartbeats.map((h) =>
+    new Date(h.timestamp).toLocaleTimeString()
+  );
   const focusData = heartbeats.map((h) => {
     const total = h.focusedTimeMs + h.unfocusedTimeMs;
     return total > 0 ? Math.round((h.focusedTimeMs / total) * 100) : 0;
@@ -161,9 +188,15 @@ function renderChartSection(heartbeats: HeartbeatRow[]): string {
         data: {
           labels: ${JSON.stringify(labels)},
           datasets: [
-            { label: 'Focus %', data: ${JSON.stringify(focusData)}, borderColor: '#28a745', tension: 0.3, yAxisID: 'y' },
-            { label: 'Typed Chars', data: ${JSON.stringify(typedData)}, borderColor: '#0d6efd', tension: 0.3, yAxisID: 'y1' },
-            { label: 'Pasted Chars', data: ${JSON.stringify(pastedData)}, borderColor: '#ffc107', tension: 0.3, yAxisID: 'y1' },
+            { label: 'Focus %', data: ${
+    JSON.stringify(focusData)
+  }, borderColor: '#28a745', tension: 0.3, yAxisID: 'y' },
+            { label: 'Typed Chars', data: ${
+    JSON.stringify(typedData)
+  }, borderColor: '#0d6efd', tension: 0.3, yAxisID: 'y1' },
+            { label: 'Pasted Chars', data: ${
+    JSON.stringify(pastedData)
+  }, borderColor: '#ffc107', tension: 0.3, yAxisID: 'y1' },
           ]
         },
         options: {
@@ -178,7 +211,10 @@ function renderChartSection(heartbeats: HeartbeatRow[]): string {
     </script>`;
 }
 
-function renderEventsTable(events: EventRow[], pasteContents: Map<string, PasteContentRow>): string {
+function renderEventsTable(
+  events: EventRow[],
+  pasteContents: Map<string, PasteContentRow>,
+): string {
   if (events.length === 0) {
     return '<div class="card"><h2>Events</h2><p class="empty-state">No events recorded.</p></div>';
   }
@@ -186,7 +222,9 @@ function renderEventsTable(events: EventRow[], pasteContents: Map<string, PasteC
   const rows = events.map((e) => {
     const isUnmatched = e.type === "paste" && e.matchedCopyHash === null;
     const rowClass = isUnmatched ? ' class="highlight-unmatched"' : "";
-    const hashCell = e.hash ? `<code>${escapeHtml(e.hash.substring(0, 12))}…</code>` : "—";
+    const hashCell = e.hash
+      ? `<code>${escapeHtml(e.hash.substring(0, 12))}…</code>`
+      : "—";
     const lengthCell = e.length !== null ? String(e.length) : "—";
 
     // Paste content expand

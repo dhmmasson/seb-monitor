@@ -13,16 +13,32 @@ import type { ExamSummaryEntry } from "../src/services/metrics.ts";
 Deno.test("renderLayout: wraps content in HTML structure with title", () => {
   const html = renderLayout("Test Page", "<p>Hello</p>");
   assertExists(html, "should return HTML string");
-  assertEquals(html.includes("<!DOCTYPE html>"), true, "should include doctype");
-  assertEquals(html.includes("<title>Test Page</title>"), true, "should include title");
+  assertEquals(
+    html.includes("<!DOCTYPE html>"),
+    true,
+    "should include doctype",
+  );
+  assertEquals(
+    html.includes("<title>Test Page</title>"),
+    true,
+    "should include title",
+  );
   assertEquals(html.includes("<p>Hello</p>"), true, "should include content");
   assertEquals(html.includes("</html>"), true, "should close html tag");
 });
 
 Deno.test("renderLayout: includes meta charset and viewport", () => {
   const html = renderLayout("Test", "<p>X</p>");
-  assertEquals(html.includes('charset="UTF-8"'), true, "should include charset");
-  assertEquals(html.includes('name="viewport"'), true, "should include viewport meta");
+  assertEquals(
+    html.includes('charset="UTF-8"'),
+    true,
+    "should include charset",
+  );
+  assertEquals(
+    html.includes('name="viewport"'),
+    true,
+    "should include viewport meta",
+  );
 });
 
 Deno.test("renderLayout: includes minimal embedded CSS", () => {
@@ -36,18 +52,35 @@ Deno.test("renderLoginPage: returns a full page with login form", () => {
   const html = renderLoginPage();
   assertEquals(html.includes("<!DOCTYPE html>"), true, "should be full page");
   assertEquals(html.includes('method="POST"'), true, "form should use POST");
-  assertEquals(html.includes('type="password"'), true, "should have password field");
-  assertEquals(html.includes('type="submit"'), true, "should have submit button");
+  assertEquals(
+    html.includes('type="password"'),
+    true,
+    "should have password field",
+  );
+  assertEquals(
+    html.includes('type="submit"'),
+    true,
+    "should have submit button",
+  );
 });
 
 Deno.test("renderLoginPage: shows error message when provided", () => {
   const html = renderLoginPage("Invalid password");
-  assertEquals(html.includes("Invalid password"), true, "should display error message");
+  assertEquals(
+    html.includes("Invalid password"),
+    true,
+    "should display error message",
+  );
 });
 
 Deno.test("renderLoginPage: no error when not provided", () => {
   const html = renderLoginPage();
-  assertEquals(html.includes("error-message"), false, "should not show error div");
+  // Check that no error message div with content appears (class is in CSS, so check for the element)
+  assertEquals(
+    html.includes('class="error-message"'),
+    false,
+    "should not show error div element",
+  );
 });
 
 // ===== Exam List =====
@@ -55,14 +88,26 @@ Deno.test("renderLoginPage: no error when not provided", () => {
 Deno.test("renderExamList: renders student rows in a table", () => {
   const students: ExamSummaryEntry[] = [
     {
-      sessionId: "s1", studentId: "Alice", focusRatio: 0.95, pasteRatio: 0.1,
-      totalCopyCount: 2, totalPasteCount: 1, unmatchedPasteCount: 0,
-      largestPasteLength: 50, largestPasteHash: "aaa",
+      sessionId: "s1",
+      studentId: "Alice",
+      focusRatio: 0.95,
+      pasteRatio: 0.1,
+      totalCopyCount: 2,
+      totalPasteCount: 1,
+      unmatchedPasteCount: 0,
+      largestPasteLength: 50,
+      largestPasteHash: "aaa",
     },
     {
-      sessionId: "s2", studentId: "Bob", focusRatio: 0.5, pasteRatio: 0.8,
-      totalCopyCount: 0, totalPasteCount: 5, unmatchedPasteCount: 3,
-      largestPasteLength: 500, largestPasteHash: "bbb",
+      sessionId: "s2",
+      studentId: "Bob",
+      focusRatio: 0.5,
+      pasteRatio: 0.8,
+      totalCopyCount: 0,
+      totalPasteCount: 5,
+      unmatchedPasteCount: 3,
+      largestPasteLength: 500,
+      largestPasteHash: "bbb",
     },
   ];
   const html = renderExamList("exam-1", students);
@@ -75,9 +120,15 @@ Deno.test("renderExamList: renders student rows in a table", () => {
 Deno.test("renderExamList: shows focus ratio as percentage", () => {
   const students: ExamSummaryEntry[] = [
     {
-      sessionId: "s1", studentId: "Alice", focusRatio: 0.95, pasteRatio: 0.1,
-      totalCopyCount: 0, totalPasteCount: 0, unmatchedPasteCount: 0,
-      largestPasteLength: 0, largestPasteHash: "",
+      sessionId: "s1",
+      studentId: "Alice",
+      focusRatio: 0.95,
+      pasteRatio: 0.1,
+      totalCopyCount: 0,
+      totalPasteCount: 0,
+      unmatchedPasteCount: 0,
+      largestPasteLength: 0,
+      largestPasteHash: "",
     },
   ];
   const html = renderExamList("exam-1", students);
@@ -87,9 +138,15 @@ Deno.test("renderExamList: shows focus ratio as percentage", () => {
 Deno.test("renderExamList: links to student detail page", () => {
   const students: ExamSummaryEntry[] = [
     {
-      sessionId: "s1", studentId: "Alice", focusRatio: 0.9, pasteRatio: 0.0,
-      totalCopyCount: 0, totalPasteCount: 0, unmatchedPasteCount: 0,
-      largestPasteLength: 0, largestPasteHash: "",
+      sessionId: "s1",
+      studentId: "Alice",
+      focusRatio: 0.9,
+      pasteRatio: 0.0,
+      totalCopyCount: 0,
+      totalPasteCount: 0,
+      unmatchedPasteCount: 0,
+      largestPasteLength: 0,
+      largestPasteHash: "",
     },
   ];
   const html = renderExamList("exam-uuid-123", students);
@@ -102,5 +159,9 @@ Deno.test("renderExamList: links to student detail page", () => {
 
 Deno.test("renderExamList: handles empty student list", () => {
   const html = renderExamList("exam-1", []);
-  assertEquals(html.includes("No students"), true, "should show empty state message");
+  assertEquals(
+    html.includes("No students"),
+    true,
+    "should show empty state message",
+  );
 });
