@@ -59,7 +59,7 @@ async function handler(req: Request): Promise<Response> {
         JSON.stringify({ sessionId: `session-${Date.now()}` }),
         { status: 200, headers: corsHeaders() },
       );
-    } catch (error) {
+    } catch (_error) {
       return new Response(
         JSON.stringify({ error: "Invalid JSON" }),
         { status: 400, headers: corsHeaders() },
@@ -76,7 +76,7 @@ async function handler(req: Request): Promise<Response> {
         JSON.stringify({ success: true }),
         { status: 200, headers: corsHeaders() },
       );
-    } catch (error) {
+    } catch (_error) {
       return new Response(
         JSON.stringify({ error: "Invalid JSON" }),
         { status: 400, headers: corsHeaders() },

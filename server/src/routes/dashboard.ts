@@ -75,10 +75,17 @@ export function createDashboardHandler(
     }
 
     // GET /dashboard/:examId/student/:sessionId — student detail
-    const studentMatch = path.match(/^\/dashboard\/([^/]+)\/student\/([^/]+)$/);
-    if (studentMatch) {
-      const eId = studentMatch[1];
-      const sId = studentMatch[2];
+    const eId = extractParam(
+      path,
+      "/dashboard/:examId/student/:sessionId",
+      "examId",
+    );
+    const sId = extractParam(
+      path,
+      "/dashboard/:examId/student/:sessionId",
+      "sessionId",
+    );
+    if (eId && sId) {
       return html(renderStudentDetail(db, eId, sId));
     }
 

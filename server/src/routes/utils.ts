@@ -1,6 +1,13 @@
 /**
- * Shared route utilities — response helpers, parameter extraction, authentication.
+ * Shared route utilities — response helpers, parameter extraction, CORS.
  */
+
+/** CORS headers for API routes. */
+export const CORS_HEADERS: HeadersInit = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
 
 /** Create an HTML response. */
 export function html(content: string, status = 200): Response {
@@ -10,15 +17,25 @@ export function html(content: string, status = 200): Response {
   });
 }
 
-/** Create a JSON response. */
+/** Create a JSON response (no CORS). */
 export function json(
   data: unknown,
   status = 200,
-  corsHeaders: HeadersInit = {},
 ): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", ...corsHeaders },
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** Create a JSON response with CORS headers (for API routes). */
+export function jsonCors(
+  data: unknown,
+  status = 200,
+): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 }
 

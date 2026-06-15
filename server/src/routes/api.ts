@@ -8,19 +8,7 @@ import { findOrCreate } from "../db/sessions.ts";
 import { insertHeartbeat } from "../db/heartbeats.ts";
 import { insertEvents } from "../db/events.ts";
 import { insertPasteContent, getPasteContent } from "../db/paste_contents.ts";
-
-const CORS_HEADERS: HeadersInit = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
-
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-  });
-}
+import { jsonCors, extractParam, CORS_HEADERS } from "./utils.ts";
 
 /**
  * Validate a heartbeat payload — checks required fields exist.
@@ -59,16 +47,6 @@ function isValidPasteRequest(body: unknown): body is PasteContentRequest {
 }
 
 /**
- * Extract path parameter from URL pattern match.
- * e.g. extractParam("/api/paste/abc123", "/api/paste/:hash") → "abc123"
- */
-function extractParam(url: string, pattern: string): string | null {
-  const regex = new RegExp("^" + pattern.replace(/:(\w+)/g, "(?<$1>[^/]+)") + "$");
-  const match = url.match(regex);
-  return match?.groups ? Object.values(match.groups)[0] ?? null : null;
-}
-
-/**
  * Create a fetch handler with all API routes.
  * Accepts a Database instance for dependency injection (testability).
  * Compatible with Deno.serve() — returns a standard fetch handler.
@@ -86,7 +64,7 @@ export function createHandler(db: DB): (req: Request) => Promise<Response> {
 
     // GET /health
     if (path === "/health" && method === "GET") {
-      return json({ status: "ok" });
+      return jsonCors({ status: "ok" });
     }
 
     // POST /api/heartbeat
@@ -95,18 +73,18 @@ export function createHandler(db: DB): (req: Request) => Promise<Response> {
       try {
         body = await req.json();
       } catch {
-        return json({ error: "Invalid JSON body" }, 400);
+        return jsonCors({ error: "Invalid JSON body" }, 400);
       }
 
       if (!isValidHeartbeatPayload(body)) {
-        return json({ error: "Invalid heartbeat payload" }, 400);
+        return jsonCors({ error: "Invalid heartbeat payload" }, 400);
       }
 
       const session = findOrCreate(db, body.studentId, body.examId);
       insertHeartbeat(db, session.sessionId, body);
       insertEvents(db, session.sessionId, body.events);
 
-      return json({ sessionId: session.sessionId });
+      return jsonCors({ sessionId: session.sessionId });
     }
 
     // POST /api/paste
@@ -115,15 +93,15 @@ export function createHandler(db: DB): (req: Request) => Promise<Response> {
       try {
         body = await req.json();
       } catch {
-        return json({ error: "Invalid JSON body" }, 400);
+        return jsonCors({ error: "Invalid JSON body" }, 400);
       }
 
       if (!isValidPasteRequest(body)) {
-        return json({ error: "Invalid paste content request" }, 400);
+        return jsonCors({ error: "Invalid paste content request" }, 400);
       }
 
       insertPasteContent(db, body);
-      return json({ ok: true });
+      return jsonCors({ ok: true });
     }
 
     // GET /api/paste/:hash
@@ -131,11 +109,11 @@ export function createHandler(db: DB): (req: Request) => Promise<Response> {
     if (pasteHash && method === "GET") {
       const result = getPasteContent(db, pasteHash);
       if (!result) {
-        return json({ error: "Paste content not found" }, 404);
+        return jsonCors({ error: "Paste content not found" }, 404);
       }
-      return json(result);
+      return jsonCors(result);
     }
 
-    return json({ error: "Not found" }, 404);
+    return jsonCors({ error: "Not found" }, 404);
   };
 }
