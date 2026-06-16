@@ -6,12 +6,11 @@
  *        (works from any directory)
  */
 import esbuild from "npm:esbuild";
-import { resolve, fromFileUrl } from "https://deno.land/std/path/mod.ts";
 
-// Resolve paths relative to this script's location
-const SCRIPT_DIR = fromFileUrl(new URL(".", import.meta.url));
-const ENTRY_POINT = resolve(SCRIPT_DIR, "src/index.ts");
-const OUT_FILE = resolve(SCRIPT_DIR, "dist/seb-monitor.js");
+// Resolve paths relative to this script's location (works from any CWD)
+const SCRIPT_DIR = new URL(".", import.meta.url).pathname;
+const ENTRY_POINT = `${SCRIPT_DIR}src/index.ts`;
+const OUT_FILE = `${SCRIPT_DIR}dist/seb-monitor.js`;
 
 console.log("Building client library...");
 console.log(`  Entry: ${ENTRY_POINT}`);
