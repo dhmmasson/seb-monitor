@@ -181,9 +181,11 @@ Deno.test("start begins heartbeat timer", async () => {
   // Mock global fetch to avoid real network calls and retry timers
   const originalFetch = globalThis.fetch;
   globalThis.fetch = () =>
-    Promise.resolve(new Response(JSON.stringify({ sessionId: "test" }), {
-      headers: { "Content-Type": "application/json" },
-    }));
+    Promise.resolve(
+      new Response(JSON.stringify({ sessionId: "test" }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
   try {
     const script = createMockScript({
@@ -225,7 +227,8 @@ Deno.test("resolveQuestionId returns 'default' when no URL or document", () => {
 });
 
 Deno.test("resolveQuestionId extracts 'slot' from Moodle quiz URL", () => {
-  const url = "https://moodle.example.com/mod/quiz/attempt.php?attempt=123&slot=3&page=2";
+  const url =
+    "https://moodle.example.com/mod/quiz/attempt.php?attempt=123&slot=3&page=2";
   assertEquals(resolveQuestionId(url, undefined), "3");
 });
 
@@ -249,7 +252,8 @@ Deno.test("resolveQuestionId reads data-question-id from script tag", () => {
     querySelector: (selector: string) => {
       if (selector === "script[data-question-id]") {
         return {
-          getAttribute: (attr: string) => attr === "data-question-id" ? "q7" : null,
+          getAttribute: (attr: string) =>
+            attr === "data-question-id" ? "q7" : null,
         } as unknown as Element;
       }
       return null;
@@ -259,4 +263,240 @@ Deno.test("resolveQuestionId reads data-question-id from script tag", () => {
     resolveQuestionId("https://example.com", mockDoc),
     "q7",
   );
+});
+
+// ===== Immediate Heartbeat on Copy/Paste Tests =====
+
+/** Create a mock document with event dispatching for tests */
+function createMockDocument() {
+  const listeners: Record<string, ((e: Event) => void)[]> = {};
+  return {
+    querySelector: () => null,
+    visibilityState: "visible" as DocumentVisibilityState,
+    addEventListener: (type: string, handler: (e: Event) => void) => {
+      if (!listeners[type]) listeners[type] = [];
+      listeners[type].push(handler);
+    },
+    removeEventListener: (type: string, handler: (e: Event) => void) => {
+      if (listeners[type]) {
+        listeners[type] = listeners[type].filter((h) => h !== handler);
+      }
+    },
+    dispatchEvent: (event: Event) => {
+      if (listeners[event.type]) {
+        for (const handler of listeners[event.type]) {
+          handler(event);
+        }
+      }
+    },
+  };
+}
+
+/** Set up global mocks for immediate heartbeat tests, returns cleanup fn */
+function setupGlobals(mockDoc: ReturnType<typeof createMockDocument>) {
+  const originalFetch = globalThis.fetch;
+  const originalDoc = (globalThis as Record<string, unknown>).document;
+  const originalGetSelection =
+    (globalThis as Record<string, unknown>).getSelection;
+
+  let heartbeatCount = 0;
+  let pasteContentCount = 0;
+  (globalThis as Record<string, unknown>).document = mockDoc;
+  (globalThis as Record<string, unknown>).getSelection = () => ({
+    toString: () => "selected text",
+  });
+  globalThis.fetch = (url: string | URL | Request) => {
+    const urlStr = typeof url === "string"
+      ? url
+      : url instanceof URL
+      ? url.href
+      : url.url;
+    if (urlStr.includes("/api/paste")) {
+      pasteContentCount++;
+    } else {
+      heartbeatCount++;
+    }
+    return Promise.resolve(
+      new Response(JSON.stringify({ sessionId: "test" }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  };
+
+  return {
+    getHeartbeatCount: () => heartbeatCount,
+    getPasteContentCount: () => pasteContentCount,
+    cleanup: () => {
+      globalThis.fetch = originalFetch;
+      if (originalDoc !== undefined) {
+        (globalThis as Record<string, unknown>).document = originalDoc;
+      } else {
+        delete (globalThis as Record<string, unknown>).document;
+      }
+      if (originalGetSelection !== undefined) {
+        (globalThis as Record<string, unknown>).getSelection =
+          originalGetSelection;
+      } else {
+        delete (globalThis as Record<string, unknown>).getSelection;
+      }
+    },
+  };
+}
+
+Deno.test("paste event triggers immediate heartbeat after debounce delay", async () => {
+  const mockDoc = createMockDocument();
+  const { getHeartbeatCount, getPasteContentCount, cleanup } = setupGlobals(
+    mockDoc,
+  );
+
+  try {
+    const mockScript = createMockScript({
+      studentId: "John Doe",
+      moduleId: "CS101",
+      examId: "exam-1",
+      serverUrl: "http://localhost:8000",
+    });
+
+    const result = initialize(mockScript);
+    result.start();
+    // Wait for initial heartbeat to fully complete
+    await new Promise((r) => setTimeout(r, 200));
+    const countAfterStart = getHeartbeatCount();
+
+    // Simulate a paste event
+    const pasteEvent = new Event("paste") as ClipboardEvent;
+    Object.defineProperty(pasteEvent, "clipboardData", {
+      value: { getData: () => "pasted text" },
+    });
+    mockDoc.dispatchEvent(pasteEvent);
+
+    // Should not send immediately (debounce)
+    assertEquals(getHeartbeatCount(), countAfterStart);
+
+    // Wait for debounce delay (500ms + buffer)
+    await new Promise((r) => setTimeout(r, 600));
+    // Exactly 1 additional heartbeat from the paste
+    assertEquals(getHeartbeatCount(), countAfterStart + 1);
+    // Paste content should also have been sent (1 pending paste flushed)
+    assertEquals(getPasteContentCount(), 1);
+
+    result.stop();
+  } finally {
+    cleanup();
+  }
+});
+
+Deno.test("copy event triggers immediate heartbeat after debounce delay", async () => {
+  const mockDoc = createMockDocument();
+  const { getHeartbeatCount, cleanup } = setupGlobals(mockDoc);
+
+  try {
+    const mockScript = createMockScript({
+      studentId: "John Doe",
+      moduleId: "CS101",
+      examId: "exam-1",
+      serverUrl: "http://localhost:8000",
+    });
+
+    const result = initialize(mockScript);
+    result.start();
+    // Wait for initial heartbeat to fully complete
+    await new Promise((r) => setTimeout(r, 200));
+    const countAfterStart = getHeartbeatCount();
+
+    // Simulate a copy event — handleCopy uses globalThis.getSelection()
+    mockDoc.dispatchEvent(new Event("copy"));
+
+    // Should not send immediately (debounce)
+    assertEquals(getHeartbeatCount(), countAfterStart);
+
+    // Wait for debounce delay (500ms + buffer)
+    await new Promise((r) => setTimeout(r, 600));
+    // Exactly 1 additional heartbeat from the copy
+    assertEquals(getHeartbeatCount(), countAfterStart + 1);
+
+    result.stop();
+  } finally {
+    cleanup();
+  }
+});
+
+Deno.test("rapid paste events are batched into single heartbeat", async () => {
+  const mockDoc = createMockDocument();
+  const { getHeartbeatCount, getPasteContentCount, cleanup } = setupGlobals(
+    mockDoc,
+  );
+
+  try {
+    const mockScript = createMockScript({
+      studentId: "John Doe",
+      moduleId: "CS101",
+      examId: "exam-1",
+      serverUrl: "http://localhost:8000",
+    });
+
+    const result = initialize(mockScript);
+    result.start();
+    // Wait for initial heartbeat to fully complete
+    await new Promise((r) => setTimeout(r, 200));
+    const countAfterStart = getHeartbeatCount();
+
+    // Fire 3 paste events in rapid succession (faster than debounce window)
+    for (let i = 0; i < 3; i++) {
+      const pasteEvent = new Event("paste") as ClipboardEvent;
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: { getData: () => `pasted text ${i}` },
+      });
+      mockDoc.dispatchEvent(pasteEvent);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    // Wait for debounce to settle (500ms after last event + buffer)
+    await new Promise((r) => setTimeout(r, 600));
+    // Should only have 1 additional heartbeat (all 3 pastes batched)
+    assertEquals(getHeartbeatCount(), countAfterStart + 1);
+    // All 3 pastes should have their content sent (flushed in the single heartbeat)
+    assertEquals(getPasteContentCount(), 3);
+
+    result.stop();
+  } finally {
+    cleanup();
+  }
+});
+
+Deno.test("stop() clears immediate heartbeat timer", async () => {
+  const mockDoc = createMockDocument();
+  const { getHeartbeatCount, cleanup } = setupGlobals(mockDoc);
+
+  try {
+    const mockScript = createMockScript({
+      studentId: "John Doe",
+      moduleId: "CS101",
+      examId: "exam-1",
+      serverUrl: "http://localhost:8000",
+    });
+
+    const result = initialize(mockScript);
+    result.start();
+    // Wait for initial heartbeat to fully complete
+    await new Promise((r) => setTimeout(r, 200));
+    const countAfterStart = getHeartbeatCount();
+
+    // Fire a paste event
+    const pasteEvent = new Event("paste") as ClipboardEvent;
+    Object.defineProperty(pasteEvent, "clipboardData", {
+      value: { getData: () => "pasted text" },
+    });
+    mockDoc.dispatchEvent(pasteEvent);
+
+    // Stop immediately (before debounce fires)
+    result.stop();
+
+    // Wait past the debounce delay
+    await new Promise((r) => setTimeout(r, 600));
+    // Should NOT have sent the immediate heartbeat
+    assertEquals(getHeartbeatCount(), countAfterStart);
+  } finally {
+    cleanup();
+  }
 });

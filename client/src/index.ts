@@ -18,9 +18,9 @@ import {
   createFocusAccumulator,
   createInputStats,
   createKeyStats,
+  recordBlur,
   recordInput,
   recordKey,
-  recordBlur,
   resetAccumulators,
 } from "./accumulator.ts";
 import { sha256 } from "./crypto.ts";
@@ -63,8 +63,10 @@ export function resolveQuestionId(
   currentUrl?: string,
   documentRef?: { querySelector: (s: string) => Element | null },
 ): string {
-  const url = currentUrl ?? (typeof location !== "undefined" ? location.href : "");
-  const doc = documentRef ?? (typeof document !== "undefined" ? document : null);
+  const url = currentUrl ??
+    (typeof location !== "undefined" ? location.href : "");
+  const doc = documentRef ??
+    (typeof document !== "undefined" ? document : null);
 
   // 1. Check data-question-id on the script tag
   if (doc) {
@@ -115,11 +117,15 @@ export function initialize(
   documentRef?: { querySelector: (s: string) => Element | null },
 ): InitResult {
   // Find the script element
-  const doc = documentRef ?? (typeof document !== "undefined" ? document : null);
-  const script = scriptElement ?? doc?.querySelector("script[data-student-id]") as HTMLScriptElement | null;
+  const doc = documentRef ??
+    (typeof document !== "undefined" ? document : null);
+  const script = scriptElement ??
+    doc?.querySelector("script[data-student-id]") as HTMLScriptElement | null;
 
   if (!script) {
-    throw new Error("Could not find seb-monitor script tag with data-student-id attribute");
+    throw new Error(
+      "Could not find seb-monitor script tag with data-student-id attribute",
+    );
   }
 
   // Read required attributes
@@ -137,7 +143,12 @@ export function initialize(
 
   // State
   const events: ExamEvent[] = [];
-  const pendingPastes: { hash: string; content: string; length: number; timestamp: number }[] = [];
+  const pendingPastes: {
+    hash: string;
+    content: string;
+    length: number;
+    timestamp: number;
+  }[] = [];
   let copyCount = 0;
   let pasteCount = 0;
   let lastFocusTime = Date.now();
@@ -146,11 +157,30 @@ export function initialize(
     : true;
   let lastInputWasPaste = false;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  let immediateHeartbeatTimer: ReturnType<typeof setTimeout> | null = null;
+  const IMMEDIATE_HEARTBEAT_DELAY_MS = 500;
   let _started = false;
   let sessionId = ""; // Set from first heartbeat response
 
   // Sender
   const sender = createSender(serverUrl);
+
+  /**
+   * Schedule an immediate heartbeat send with debounce.
+   * Called after copy/paste events to ensure they are captured promptly.
+   * Multiple rapid events within the delay window are batched into a single heartbeat.
+   */
+  function scheduleImmediateHeartbeat(): void {
+    if (!_started) return;
+    if (immediateHeartbeatTimer !== null) {
+      clearTimeout(immediateHeartbeatTimer);
+    }
+    immediateHeartbeatTimer = setTimeout(() => {
+      immediateHeartbeatTimer = null;
+      if (!_started) return;
+      sendHeartbeat().catch(() => {});
+    }, IMMEDIATE_HEARTBEAT_DELAY_MS);
+  }
 
   // Heartbeat builder
   const heartbeat = createHeartbeatBuilder(
@@ -161,16 +191,26 @@ export function initialize(
     input,
     keys,
     {
-      start() { _started = true; },
-      stop() { _started = false; },
-      getEvents() { return [...events]; },
+      start() {
+        _started = true;
+      },
+      stop() {
+        _started = false;
+      },
+      getEvents() {
+        return [...events];
+      },
       clearEvents() {
         events.length = 0;
         copyCount = 0;
         pasteCount = 0;
       },
-      getCopyCount() { return copyCount; },
-      getPasteCount() { return pasteCount; },
+      getCopyCount() {
+        return copyCount;
+      },
+      getPasteCount() {
+        return pasteCount;
+      },
     },
   );
 
@@ -218,9 +258,11 @@ export function initialize(
   }
 
   async function handleCopy(): Promise<void> {
-    const selection = typeof globalThis !== "undefined" && typeof globalThis.getSelection === "function"
-      ? globalThis.getSelection()?.toString() ?? ""
-      : "";
+    const selection =
+      typeof globalThis !== "undefined" &&
+        typeof globalThis.getSelection === "function"
+        ? globalThis.getSelection()?.toString() ?? ""
+        : "";
     if (selection) {
       const hash = await sha256(selection);
       copyCount++;
@@ -230,6 +272,7 @@ export function initialize(
         hash,
         length: selection.length,
       });
+      scheduleImmediateHeartbeat();
     }
   }
 
@@ -249,7 +292,13 @@ export function initialize(
       });
 
       // Buffer paste content — will be sent after heartbeat establishes sessionId
-      pendingPastes.push({ hash, content: pastedText, length: pastedText.length, timestamp: Date.now() });
+      pendingPastes.push({
+        hash,
+        content: pastedText,
+        length: pastedText.length,
+        timestamp: Date.now(),
+      });
+      scheduleImmediateHeartbeat();
     }
   }
 
@@ -356,7 +405,10 @@ export function initialize(
         globalThis.removeEventListener("blur", handleBlur);
       }
       if (typeof document !== "undefined") {
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
+        document.removeEventListener(
+          "visibilitychange",
+          handleVisibilityChange,
+        );
         document.removeEventListener("copy", handleCopy);
         document.removeEventListener("paste", handlePaste as EventListener);
         document.removeEventListener("keydown", handleKeydown as EventListener);
@@ -367,6 +419,12 @@ export function initialize(
       if (heartbeatTimer !== null) {
         clearInterval(heartbeatTimer);
         heartbeatTimer = null;
+      }
+
+      // Clear immediate heartbeat timer
+      if (immediateHeartbeatTimer !== null) {
+        clearTimeout(immediateHeartbeatTimer);
+        immediateHeartbeatTimer = null;
       }
     },
   };
@@ -389,12 +447,18 @@ function autoStart(): void {
       `[SEB Monitor] Monitoring started for ${result.studentId} on ${result.examId}`,
     );
   } catch (error) {
-    console.error("[SEB Monitor] Failed to initialize:", (error as Error).message);
+    console.error(
+      "[SEB Monitor] Failed to initialize:",
+      (error as Error).message,
+    );
   }
 }
 
 // Auto-start when loaded as an IIFE in a browser environment
-if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+if (
+  typeof document !== "undefined" &&
+  typeof document.addEventListener === "function"
+) {
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", autoStart);
   } else {
