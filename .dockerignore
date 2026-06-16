@@ -1,0 +1,31 @@
+# Development files
+.git
+.gitignore
+.DS_Store
+.venv
+.cz.json
+*.lock
+
+# Documentation (not needed at runtime)
+vision.md
+plan.md
+AGENTS.md
+CHANGELOG.md
+README.md
+
+# Demo files (exam.html is served separately, included via docs/)
+demo/
+
+# Test files
+tests/
+main_test.ts
+*_test.ts
+
+# Build artifacts (rebuilt in Docker)
+client/dist/
+client/src/*_test.ts
+server/tests/
+
+# IDE
+.vscode
+.idea

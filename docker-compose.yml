@@ -1,0 +1,32 @@
+# SEB Monitor — Docker Compose
+# Usage:
+#   docker compose up -d          # start in background
+#   docker compose logs -f        # view logs
+#   docker compose down           # stop and remove
+#   docker compose down -v        # stop and remove + delete data volume
+
+services:
+  seb-monitor:
+    build: .
+    container_name: seb-monitor
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - seb-data:/data
+    environment:
+      - PORT=8000
+      - DB_PATH=/data/seb-monitor.db
+      - COOKIE_SECRET=${COOKIE_SECRET:-change-me-in-production}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-}
+      - DASHBOARD_PASSWORD_HASH=${DASHBOARD_PASSWORD_HASH:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  seb-data:
+    driver: local
