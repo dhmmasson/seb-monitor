@@ -241,3 +241,49 @@ Deno.test("GET /dashboard: shows exam index with all exams when multiple exist",
     closeTestDb(db);
   }
 });
+
+// ===== BASE_PATH — Reverse Proxy Support =====
+
+Deno.test("GET /dashboard: redirects to basePath/auth/login when unauthenticated and basePath is set", async () => {
+  const db = createTestDb();
+  try {
+    const app = createDashboardHandler(db, TEST_SECRET, "/seb-monitor");
+    const resp = await sendRequest(app, "/dashboard");
+    assertEquals(resp.status, 302, "should redirect");
+    assertEquals(
+      resp.headers.get("location"),
+      "/seb-monitor/auth/login",
+      "should redirect with base path prefix",
+    );
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("POST /auth/login: redirects to basePath/dashboard on success when basePath is set", async () => {
+  const db = createTestDb();
+  try {
+    const passwordHash = await hashPassword("exam-password-123");
+    const app = createAuthHandler(db, TEST_SECRET, passwordHash, "/seb-monitor");
+    const resp = await sendRequest(app, "/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "password=exam-password-123",
+    });
+    assertEquals(resp.status, 302, "should redirect");
+    assertEquals(
+      resp.headers.get("location"),
+      "/seb-monitor/dashboard",
+      "should redirect to basePath/dashboard",
+    );
+    const setCookie = resp.headers.get("set-cookie");
+    assertExists(setCookie, "should set a cookie");
+    assertEquals(
+      setCookie.includes("Path=/seb-monitor/"),
+      true,
+      "cookie Path should include base path",
+    );
+  } finally {
+    closeTestDb(db);
+  }
+});

@@ -39,6 +39,7 @@ async function isAuthenticated(req: Request, secret: string): Promise<boolean> {
 export function createDashboardHandler(
   db: DB,
   secret: string,
+  basePath = "",
 ): (req: Request) => Promise<Response> {
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
@@ -52,7 +53,7 @@ export function createDashboardHandler(
     // Check authentication
     const authed = await isAuthenticated(req, secret);
     if (!authed) {
-      return redirect("/auth/login");
+      return redirect(`${basePath}/auth/login`);
     }
 
     // GET /dashboard — exam index showing all exams

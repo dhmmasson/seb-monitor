@@ -19,6 +19,7 @@ services:
       - COOKIE_SECRET=${COOKIE_SECRET:-change-me-in-production}
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-}
       - DASHBOARD_PASSWORD_HASH=${DASHBOARD_PASSWORD_HASH:-}
+      - BASE_PATH=${BASE_PATH:-}
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "wget", "-qO-", "http://localhost:8000/health" ]

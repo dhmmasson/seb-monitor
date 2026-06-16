@@ -182,6 +182,7 @@ docker run -d \
 | `DASHBOARD_PASSWORD` | — | Dashboard login password (required for dashboard access) |
 | `DASHBOARD_PASSWORD_HASH` | — | Pre-computed PBKDF2 hash (alternative to plaintext password) |
 | `COOKIE_SECRET` | `change-me-in-production` | HMAC-SHA256 secret for signing auth cookies |
+| `BASE_PATH` | ` ` (empty) | URL prefix when behind a reverse proxy (e.g. `/seb-monitor`) |
 
 ### Volumes
 
@@ -213,6 +214,7 @@ docker inspect --format='{{.State.Health.Status}}' seb-monitor
 | `DASHBOARD_PASSWORD` | — | Dashboard login password |
 | `DASHBOARD_PASSWORD_HASH` | — | Pre-computed PBKDF2 hash (alternative) |
 | `COOKIE_SECRET` | `change-me-in-production` | Cookie signing secret |
+| `BASE_PATH` | ` ` (empty) | URL prefix when behind a reverse proxy (e.g. `/seb-monitor`) |
 
 ### Client (script data-attributes)
 
@@ -227,3 +229,24 @@ docker inspect --format='{{.State.Health.Status}}' seb-monitor
 ## License
 
 MIT 
+
+## Reverse Proxy (Apache)
+
+When serving behind Apache at a subpath (e.g. `https://devweb.estia.fr/seb-monitor/`):
+
+**Apache config** (`/etc/apache2/sites-available/your-site-le-ssl.conf`):
+
+```apache
+RewriteRule ^/seb-monitor$ /seb-monitor/ [R]
+ProxyPass /seb-monitor/ http://localhost:44513/
+ProxyPassReverse /seb-monitor/ http://localhost:44513/
+```
+
+**Docker Compose** — set `BASE_PATH`:
+
+```yaml
+environment:
+  - BASE_PATH=/seb-monitor
+```
+
+Apache strips the `/seb-monitor/` prefix before forwarding, so the server receives requests at `/api/heartbeat`, `/dashboard`, etc. `BASE_PATH` ensures redirects and cookies point to the correct subpath.

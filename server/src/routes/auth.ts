@@ -24,6 +24,7 @@ export function createAuthHandler(
   _db: DB,
   secret: string,
   storedHash?: string,
+  basePath = "",
 ): (req: Request) => Promise<Response> {
   // If no pre-computed hash, hash from env var at startup
   const _storedHash = storedHash;
@@ -54,9 +55,9 @@ export function createAuthHandler(
 
       // Set signed auth cookie and redirect to dashboard
       const signedValue = await signCookie("authenticated", secret);
-      return redirect("/dashboard", {
+      return redirect(`${basePath}/dashboard`, {
         "Set-Cookie":
-          `${COOKIE_NAME}=${signedValue}; Path=/; HttpOnly; SameSite=Strict`,
+          `${COOKIE_NAME}=${signedValue}; Path=${basePath}/; HttpOnly; SameSite=Strict`,
       });
     }
 

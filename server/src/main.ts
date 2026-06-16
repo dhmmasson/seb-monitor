@@ -10,6 +10,8 @@ import { getDb, closeDb } from "./db/connection.ts";
 // Configuration
 const PORT = parseInt(Deno.env.get("PORT") ?? "8000");
 const SECRET = Deno.env.get("COOKIE_SECRET") ?? "change-me-in-production-32chars!!";
+// Base path for reverse proxy support (e.g. "/seb-monitor" when behind Apache/Nginx)
+const BASE_PATH = (Deno.env.get("BASE_PATH") ?? "").replace(/\/+$/, ""); // strip trailing slash
 
 // Resolve project root (server/src/main.ts → ../../ = project root)
 const PROJECT_ROOT = new URL("../..", import.meta.url).pathname;
@@ -41,8 +43,8 @@ try {
   passwordHash = "";
 }
 
-const authHandler = createAuthHandler(db, SECRET, passwordHash);
-const dashboardHandler = createDashboardHandler(db, SECRET);
+const authHandler = createAuthHandler(db, SECRET, passwordHash, BASE_PATH);
+const dashboardHandler = createDashboardHandler(db, SECRET, BASE_PATH);
 
 // Graceful shutdown
 const shutdown = () => {
@@ -93,11 +95,12 @@ const handler = async (req: Request): Promise<Response> => {
 
 // Start server
 console.log(`SEB Monitor server starting on port ${PORT}...`);
-console.log(`  Health:    http://localhost:${PORT}/health`);
-console.log(`  API:       http://localhost:${PORT}/api/heartbeat`);
-console.log(`  Paste:     http://localhost:${PORT}/api/paste`);
-console.log(`  Dashboard: http://localhost:${PORT}/dashboard`);
-console.log(`  Login:     http://localhost:${PORT}/auth/login`);
+if (BASE_PATH) console.log(`  Base path: ${BASE_PATH}`);
+console.log(`  Health:    http://localhost:${PORT}${BASE_PATH}/health`);
+console.log(`  API:       http://localhost:${PORT}${BASE_PATH}/api/heartbeat`);
+console.log(`  Paste:     http://localhost:${PORT}${BASE_PATH}/api/paste`);
+console.log(`  Dashboard: http://localhost:${PORT}${BASE_PATH}/dashboard`);
+console.log(`  Login:     http://localhost:${PORT}${BASE_PATH}/auth/login`);
 console.log(`  Exam:      http://localhost:${PORT}/exam.html`);
 console.log(`  Client JS: http://localhost:${PORT}/seb-monitor.js`);
 
