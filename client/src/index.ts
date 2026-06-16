@@ -27,6 +27,10 @@ import { sha256 } from "./crypto.ts";
 import { createCollector } from "./collector.ts";
 import { createHeartbeatBuilder } from "./heartbeat.ts";
 import { createSender } from "./sender.ts";
+import {
+  type AceAdapter,
+  type AceAdapterOptions,
+} from "./ace-adapter.ts";
 import type { FocusAccumulator, InputStats } from "../../shared/types.ts";
 
 /** Result of initialization */
@@ -112,6 +116,7 @@ function requireAttr(
 export function initialize(
   scriptElement?: HTMLScriptElement,
   documentRef?: { querySelector: (s: string) => Element | null },
+  aceAdapterFactory?: (options: AceAdapterOptions, doc?: Document) => AceAdapter,
 ): InitResult {
   // Find the script element
   const doc = documentRef ??
@@ -156,6 +161,9 @@ export function initialize(
   const IMMEDIATE_HEARTBEAT_DELAY_MS = 500;
   let _started = false;
   let sessionId = ""; // Set from first heartbeat response
+
+  // Ace Editor adapter (optional — hooks into Ace paste/change events)
+  let aceAdapter: AceAdapter | null = null;
 
   // Sender
   const sender = createSender(serverUrl);
@@ -351,9 +359,45 @@ export function initialize(
       if (typeof document !== "undefined") {
         document.addEventListener("visibilitychange", handleVisibilityChange);
         document.addEventListener("copy", handleCopy);
-        document.addEventListener("paste", handlePaste as EventListener);
+        document.addEventListener("paste", handlePaste as EventListener, true);
         document.addEventListener("keydown", handleKeydown as EventListener);
         document.addEventListener("input", handleInput);
+      }
+
+      // Attach Ace editor adapter if factory provided
+      if (aceAdapterFactory) {
+        aceAdapter = aceAdapterFactory({
+          onPaste: (text: string) => {
+            // Ace paste handler — mirrors handlePaste logic but with direct text
+            sha256(text).then((hash) => {
+              collector.recordPaste();
+              lastInputWasPaste = true;
+              collector.record({
+                type: "paste",
+                timestamp: Date.now(),
+                hash,
+                length: text.length,
+                matchedCopyHash: null,
+              });
+              pendingPastes.push({
+                hash,
+                content: text,
+                length: text.length,
+                timestamp: Date.now(),
+              });
+              scheduleImmediateHeartbeat();
+            });
+          },
+          onChange: (delta) => {
+            if (delta.action === "insert") {
+              recordInput(input, delta.text.length, lastInputWasPaste);
+              lastInputWasPaste = false;
+            } else if (delta.action === "remove") {
+              recordInput(input, -delta.text.length, false);
+            }
+          },
+        }, doc as Document);
+        aceAdapter.attach();
       }
 
       // Send initial heartbeat immediately to register the student
@@ -381,9 +425,15 @@ export function initialize(
           handleVisibilityChange,
         );
         document.removeEventListener("copy", handleCopy);
-        document.removeEventListener("paste", handlePaste as EventListener);
+        document.removeEventListener("paste", handlePaste as EventListener, true);
         document.removeEventListener("keydown", handleKeydown as EventListener);
         document.removeEventListener("input", handleInput);
+      }
+
+      // Detach Ace editor adapter
+      if (aceAdapter) {
+        aceAdapter.detach();
+        aceAdapter = null;
       }
 
       // Clear heartbeat timer
