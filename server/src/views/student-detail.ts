@@ -141,8 +141,8 @@ export function renderStudentDetail(
     ? renderChartSection(heartbeats)
     : '<p class="empty-state">No heartbeats recorded yet.</p>';
 
-  // Events table
-  const eventsHtml = renderEventsTable(events, pasteContents);
+  // Events table (includes heartbeats interleaved by timestamp)
+  const eventsHtml = renderEventsTable(events, pasteContents, heartbeats);
 
   const content = `
     <h1 style="margin-bottom: 0.5rem;">👤 ${escapeHtml(studentId)}</h1>
@@ -215,12 +215,14 @@ function renderChartSection(heartbeats: HeartbeatRow[]): string {
 function renderEventsTable(
   events: EventRow[],
   pasteContents: Map<string, PasteContentRow>,
+  heartbeats: HeartbeatRow[],
 ): string {
-  if (events.length === 0) {
-    return '<div class="card"><h2>Events</h2><p class="empty-state">No events recorded.</p></div>';
-  }
+  // Build unified timeline: events + heartbeats, sorted by timestamp
+  type TimelineEntry = { timestamp: number; html: string };
+  const timeline: TimelineEntry[] = [];
 
-  const rows = events.map((e) => {
+  // Add events
+  for (const e of events) {
     const isUnmatched = e.type === "paste" && e.matchedCopyHash === null;
     const rowClass = isUnmatched ? ' class="highlight-unmatched"' : "";
     const hashCell = e.hash
@@ -228,7 +230,6 @@ function renderEventsTable(
       : "—";
     const lengthCell = e.length !== null ? String(e.length) : "—";
 
-    // Paste content expand
     let contentCell = "";
     if (e.type === "paste" && e.hash && pasteContents.has(e.hash)) {
       const paste = pasteContents.get(e.hash)!;
@@ -239,14 +240,42 @@ function renderEventsTable(
       contentCell = `<span style="color: #999;">(not stored)</span>`;
     }
 
-    return `<tr${rowClass}>
-      <td>${escapeHtml(e.type)}</td>
-      <td>${new Date(e.timestamp).toLocaleTimeString()}</td>
-      <td>${hashCell}</td>
-      <td>${lengthCell}</td>
-      <td>${contentCell}</td>
-    </tr>`;
-  }).join("");
+    timeline.push({
+      timestamp: e.timestamp,
+      html: `<tr${rowClass}>
+        <td>${escapeHtml(e.type)}</td>
+        <td>${new Date(e.timestamp).toLocaleTimeString()}</td>
+        <td>${hashCell}</td>
+        <td>${lengthCell}</td>
+        <td>${contentCell}</td>
+      </tr>`,
+    });
+  }
+
+  // Add heartbeats
+  for (const h of heartbeats) {
+    const total = h.focusedTimeMs + h.unfocusedTimeMs;
+    const focusPct = total > 0 ? Math.round((h.focusedTimeMs / total) * 100) : 0;
+    timeline.push({
+      timestamp: h.timestamp,
+      html: `<tr>
+        <td><strong>heartbeat</strong></td>
+        <td>${new Date(h.timestamp).toLocaleTimeString()}</td>
+        <td>—</td>
+        <td>—</td>
+        <td>Focus: ${focusPct}% · Typed: ${h.typedChars} chars</td>
+      </tr>`,
+    });
+  }
+
+  // Sort by timestamp
+  timeline.sort((a, b) => a.timestamp - b.timestamp);
+
+  if (timeline.length === 0) {
+    return '<div class="card"><h2>📋 Events</h2><p class="empty-state">No events recorded.</p></div>';
+  }
+
+  const rows = timeline.map((entry) => entry.html).join("");
 
   return `
     <div class="card" style="margin-bottom: 1.5rem;">
