@@ -264,3 +264,57 @@ Deno.test("reset clears collector events", () => {
   builder.reset();
   assertEquals(eventsCleared, true);
 });
+
+Deno.test("reset resets focus, input, and key accumulators", () => {
+  const { focus, input, keys } = createMockAccumulators();
+  // Set non-zero values
+  focus.focusedTimeMs = 50000;
+  focus.unfocusedTimeMs = 10000;
+  focus.blurCount = 3;
+  input.typedChars = 200;
+  input.pastedChars = 50;
+  input.deletedChars = 20;
+  input.currentLength = 230;
+  keys.keyDownCount = 500;
+  keys.ctrlCount = 5;
+  keys.altCount = 2;
+  keys.shiftCount = 30;
+
+  const collector = {
+    start: () => {},
+    stop: () => {},
+    getEvents: () => [] as ExamEvent[],
+    getCopyCount: () => 3,
+    getPasteCount: () => 2,
+    clearEvents: () => {},
+  };
+
+  const builder = createHeartbeatBuilder(
+    "student1",
+    "exam1",
+    "question1",
+    focus,
+    input,
+    keys,
+    collector,
+  );
+
+  builder.reset();
+
+  // Focus should be reset
+  assertEquals(focus.focusedTimeMs, 0);
+  assertEquals(focus.unfocusedTimeMs, 0);
+  assertEquals(focus.blurCount, 0);
+
+  // Input should be reset (except currentLength)
+  assertEquals(input.typedChars, 0);
+  assertEquals(input.pastedChars, 0);
+  assertEquals(input.deletedChars, 0);
+  assertEquals(input.currentLength, 230, "currentLength should NOT be reset");
+
+  // Keys should be reset
+  assertEquals(keys.keyDownCount, 0);
+  assertEquals(keys.ctrlCount, 0);
+  assertEquals(keys.altCount, 0);
+  assertEquals(keys.shiftCount, 0);
+});

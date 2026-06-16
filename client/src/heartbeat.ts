@@ -12,6 +12,7 @@ import type {
   KeyStats,
 } from "../../shared/types.ts";
 import type { Collector } from "./collector.ts";
+import { resetAccumulators } from "./accumulator.ts";
 
 /** Heartbeat builder interface */
 export interface HeartbeatBuilder {
@@ -65,9 +66,10 @@ export function createHeartbeatBuilder(
 
     /**
      * Reset state after successful heartbeat send.
-     * Clears the event buffer in the collector.
+     * Resets accumulators and clears the event buffer in the collector.
      */
     reset(): void {
+      resetAccumulators(focus, input, keys);
       collector.clearEvents();
     },
   };

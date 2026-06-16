@@ -204,8 +204,8 @@
 <body>
     <!-- SEB Monitor configuration (in production, this would be the external script tag) -->
     <!-- Moodle would inject: data-student-id="{fullname}" data-exam-id="{thisurl}" -->
-    <script id="seb-monitor-config" data-student-id="Dimitri" data-module-id="CS101-Midterm"
-        data-exam-id="https://moodle.example.com/exam/123" data-server-url="http://localhost:8000">
+    <script id="seb-monitor-config" data-student-id="Dimitri" data-exam-id="pgi2026"
+        data-server-url="http://localhost:8000">
         </script>
 
     <div class="container">
@@ -547,6 +547,8 @@
                     focusedTimeMs = 0;
                     unfocusedTimeMs = 0;
                     blurCount = 0;
+                    copyCount = 0;
+                    pasteCount = 0;
                     typedChars = 0;
                     pastedChars = 0;
                     deletedChars = 0;
