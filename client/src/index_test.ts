@@ -188,6 +188,8 @@ Deno.test("start begins heartbeat timer", () => {
   const result = initialize(script);
   // start() should not throw
   result.start();
+  // Clean up the interval to avoid leak detection
+  result.stop();
 });
 
 Deno.test("stop ends heartbeat timer", () => {

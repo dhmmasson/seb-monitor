@@ -14,6 +14,24 @@
  * @module index
  */
 
+import {
+  createFocusAccumulator,
+  createInputStats,
+  createKeyStats,
+  recordInput,
+  recordKey,
+  recordBlur,
+  resetAccumulators,
+} from "./accumulator.ts";
+import { sha256 } from "./crypto.ts";
+import { createHeartbeatBuilder } from "./heartbeat.ts";
+import { createSender } from "./sender.ts";
+import type {
+  ExamEvent,
+  FocusAccumulator,
+  InputStats,
+} from "../../shared/types.ts";
+
 /** Result of initialization */
 export interface InitResult {
   /** Student ID from data-student-id */
@@ -24,11 +42,14 @@ export interface InitResult {
   serverUrl: string;
   /** Question ID from data-question-id or URL params */
   questionId: string;
-  /** Start the heartbeat timer */
+  /** Start the heartbeat timer and event listeners */
   start(): void;
-  /** Stop the heartbeat timer */
+  /** Stop the heartbeat timer and event listeners */
   stop(): void;
 }
+
+/** Default heartbeat interval in milliseconds */
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 60_000;
 
 /**
  * Resolve the question ID from the script tag or page URL.
@@ -82,6 +103,7 @@ function requireAttr(
 
 /**
  * Initialize the monitoring system from a <script> tag's data attributes.
+ * Sets up accumulators, event listeners, heartbeat timer, and sender.
  *
  * @param scriptElement - The <script> element (auto-discovered if not provided)
  * @param documentRef - Document reference for auto-discovery (default: global document)
@@ -108,17 +130,261 @@ export function initialize(
   // Read optional questionId (falls back to URL params or "default")
   const questionId = script.dataset.questionId ?? resolveQuestionId();
 
+  // Create accumulators
+  const focus: FocusAccumulator = createFocusAccumulator();
+  const input: InputStats = createInputStats();
+  const keys = createKeyStats();
+
+  // State
+  const events: ExamEvent[] = [];
+  let copyCount = 0;
+  let pasteCount = 0;
+  let lastFocusTime = Date.now();
+  let isFocused = typeof document !== "undefined"
+    ? document.visibilityState === "visible"
+    : true;
+  let lastInputWasPaste = false;
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  let _started = false;
+
+  // Sender
+  const sender = createSender(serverUrl);
+
+  // Heartbeat builder
+  const heartbeat = createHeartbeatBuilder(
+    studentId,
+    examId,
+    questionId,
+    focus,
+    input,
+    keys,
+    {
+      start() { _started = true; },
+      stop() { _started = false; },
+      getEvents() { return [...events]; },
+      clearEvents() {
+        events.length = 0;
+        copyCount = 0;
+        pasteCount = 0;
+      },
+      getCopyCount() { return copyCount; },
+      getPasteCount() { return pasteCount; },
+    },
+  );
+
+  // --- Event Handlers ---
+
+  function handleVisibilityChange(): void {
+    if (!doc) return;
+    const now = Date.now();
+    if (doc.visibilityState === "visible") {
+      if (!isFocused) {
+        focus.unfocusedTimeMs += now - lastFocusTime;
+        isFocused = true;
+        lastFocusTime = now;
+        events.push({ type: "focus", timestamp: now });
+      }
+    } else {
+      if (isFocused) {
+        focus.focusedTimeMs += now - lastFocusTime;
+        isFocused = false;
+        lastFocusTime = now;
+        events.push({ type: "blur", timestamp: now });
+      }
+    }
+  }
+
+  function handleFocus(): void {
+    if (!isFocused) {
+      const now = Date.now();
+      focus.unfocusedTimeMs += now - lastFocusTime;
+      isFocused = true;
+      lastFocusTime = now;
+      events.push({ type: "focus", timestamp: now });
+    }
+  }
+
+  function handleBlur(): void {
+    if (isFocused) {
+      const now = Date.now();
+      focus.focusedTimeMs += now - lastFocusTime;
+      isFocused = false;
+      recordBlur(focus);
+      lastFocusTime = now;
+      events.push({ type: "blur", timestamp: now });
+    }
+  }
+
+  async function handleCopy(): Promise<void> {
+    const selection = typeof globalThis !== "undefined" && typeof globalThis.getSelection === "function"
+      ? globalThis.getSelection()?.toString() ?? ""
+      : "";
+    if (selection) {
+      const hash = await sha256(selection);
+      copyCount++;
+      events.push({
+        type: "copy",
+        timestamp: Date.now(),
+        hash,
+        length: selection.length,
+      });
+    }
+  }
+
+  async function handlePaste(e: ClipboardEvent): Promise<void> {
+    const pastedText = e.clipboardData?.getData("text") ?? "";
+    if (pastedText) {
+      const hash = await sha256(pastedText);
+      pasteCount++;
+      lastInputWasPaste = true;
+
+      events.push({
+        type: "paste",
+        timestamp: Date.now(),
+        hash,
+        length: pastedText.length,
+        matchedCopyHash: null,
+      });
+
+      // Send paste content immediately
+      await sender.sendPasteContent({
+        hash,
+        content: pastedText,
+        length: pastedText.length,
+        sessionId: "", // Will be set by server
+        examId,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  function handleInput(): void {
+    // Find answer fields (textarea, contenteditable)
+    const answerFields = doc
+      ? doc.querySelectorAll("textarea, [contenteditable='true']")
+      : [];
+    let totalLength = 0;
+    for (const field of answerFields) {
+      totalLength += (field as HTMLTextAreaElement).value?.length ?? 0;
+    }
+    const delta = totalLength - input.currentLength;
+    if (delta !== 0) {
+      recordInput(input, delta, lastInputWasPaste);
+      lastInputWasPaste = false;
+    }
+  }
+
+  function handleKeydown(e: KeyboardEvent): void {
+    recordKey(keys, e);
+  }
+
+  // --- Heartbeat Send ---
+
+  async function sendHeartbeat(): Promise<void> {
+    // Update focus time if currently focused
+    if (isFocused) {
+      const now = Date.now();
+      focus.focusedTimeMs += now - lastFocusTime;
+      lastFocusTime = now;
+    }
+
+    const payload = heartbeat.build();
+
+    try {
+      await sender.sendHeartbeat(payload);
+      // Reset after successful send
+      resetAccumulators(focus, input, keys);
+      events.length = 0;
+      copyCount = 0;
+      pasteCount = 0;
+    } catch {
+      // Silent failure — will retry on next interval
+    }
+  }
+
+  // --- Start/Stop ---
+
   return {
     studentId,
     examId,
     serverUrl,
     questionId,
     start(): void {
-      // TODO: Initialize accumulators, collector, heartbeat builder, sender
-      // TODO: Start heartbeat timer
+      if (_started) return;
+      _started = true;
+
+      // Attach event listeners
+      if (typeof globalThis.addEventListener === "function") {
+        globalThis.addEventListener("focus", handleFocus);
+        globalThis.addEventListener("blur", handleBlur);
+      }
+      if (typeof document !== "undefined") {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        document.addEventListener("copy", handleCopy);
+        document.addEventListener("paste", handlePaste as EventListener);
+        document.addEventListener("keydown", handleKeydown as EventListener);
+        document.addEventListener("input", handleInput);
+      }
+
+      // Start heartbeat timer
+      heartbeatTimer = setInterval(() => {
+        sendHeartbeat();
+      }, DEFAULT_HEARTBEAT_INTERVAL_MS);
+
+      lastFocusTime = Date.now();
     },
     stop(): void {
-      // TODO: Clear heartbeat timer
+      if (!_started) return;
+      _started = false;
+
+      // Detach event listeners
+      if (typeof globalThis.removeEventListener === "function") {
+        globalThis.removeEventListener("focus", handleFocus);
+        globalThis.removeEventListener("blur", handleBlur);
+      }
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+        document.removeEventListener("copy", handleCopy);
+        document.removeEventListener("paste", handlePaste as EventListener);
+        document.removeEventListener("keydown", handleKeydown as EventListener);
+        document.removeEventListener("input", handleInput);
+      }
+
+      // Clear heartbeat timer
+      if (heartbeatTimer !== null) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
     },
   };
+}
+
+/**
+ * Auto-initialize and start monitoring.
+ * Called when the script loads as an IIFE in the browser.
+ * Exposes the result on `window.__sebMonitor` for external access.
+ */
+function autoStart(): void {
+  try {
+    const result = initialize();
+    result.start();
+    // Expose for external access (demo, debugging)
+    if (typeof globalThis !== "undefined") {
+      (globalThis as unknown as Record<string, unknown>).__sebMonitor = result;
+    }
+    console.log(
+      `[SEB Monitor] Monitoring started for ${result.studentId} on ${result.examId}`,
+    );
+  } catch (error) {
+    console.error("[SEB Monitor] Failed to initialize:", (error as Error).message);
+  }
+}
+
+// Auto-start when loaded as an IIFE in a browser environment
+if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", autoStart);
+  } else {
+    autoStart();
+  }
 }
