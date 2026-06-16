@@ -2,7 +2,7 @@
 
 ## What It Does
 
-The collector module monitors browser events (copy, paste, focus, blur, keydown, input) and maintains an event buffer that is sent with each heartbeat. It provides a clean API for starting/stopping event collection and retrieving buffered events.
+The collector module manages the event buffer and copy/paste counts for heartbeat reporting. It provides a clean API for recording events and retrieving them for the heartbeat payload.
 
 ## How to Verify It Works
 
@@ -11,45 +11,61 @@ The collector module monitors browser events (copy, paste, focus, blur, keydown,
    cd client && deno test src/collector_test.ts
    ```
 
-2. All 6 tests should pass:
+2. All 13 tests should pass:
    - `createCollector returns collector object`
    - `collector starts with empty events`
    - `collector starts with zero copy count`
    - `collector starts with zero paste count`
+   - `record adds event to buffer`
+   - `record adds multiple events`
+   - `recordCopy increments copy count`
+   - `recordPaste increments paste count`
+   - `getEvents returns a copy of the buffer`
    - `clearEvents empties the event buffer`
    - `clearEvents resets copy and paste counts`
+   - `start and stop toggle collector state`
+   - `collector records events and counts together`
 
 ## API
 
-### `createCollector(focus, input, keys, sendPasteContent)`
+### `createCollector(): Collector`
 
 Creates a new event collector instance.
-
-**Parameters:**
-- `focus: FocusAccumulator` - Focus accumulator to update on focus/blur events
-- `input: InputStats` - Input stats to update on input events
-- `keys: KeyStats` - Key stats to update on keydown events
-- `sendPasteContent: SendPasteContent` - Callback to send paste content to server immediately
 
 **Returns:** `Collector` instance with the following methods:
 
 - `start()` - Start collecting events (attach listeners)
 - `stop()` - Stop collecting events (detach listeners)
 - `getEvents()` - Get buffered events (returns a copy)
+- `record(event)` - Record an event in the buffer
+- `recordCopy()` - Record a copy event
+- `recordPaste()` - Record a paste event
 - `clearEvents()` - Clear event buffer and reset counts
 - `getCopyCount()` - Get total copy count since last clear
 - `getPasteCount()` - Get total paste count since last clear
 
-## Known Limitations
+## Usage
 
-- Event listeners are not yet attached (implementation is minimal for current tests)
-- The `started` state is tracked but not used for actual listener management
-- Future tests will need to mock browser APIs (`document`, `window`) for full event collection testing
+```typescript
+import { createCollector } from "./collector.ts";
 
-## Spec Reference
+const collector = createCollector();
+collector.start();
 
-See `vision.md` Section: "Event Collection" for the full specification of what events should be collected and how they should be processed.
+// Record events
+collector.record({ type: "focus", timestamp: Date.now() });
+collector.recordCopy();
+collector.recordPaste();
+
+// Get state for heartbeat
+const events = collector.getEvents();
+const copyCount = collector.getCopyCount();
+const pasteCount = collector.getPasteCount();
+
+// Reset after successful heartbeat
+collector.clearEvents();
+```
 
 ## Dependencies
 
-- `../../shared/types.ts` - Type definitions for `ExamEvent`, `FocusAccumulator`, `InputStats`, `KeyStats`
+- `../../shared/types.ts` - Type definitions for `ExamEvent`

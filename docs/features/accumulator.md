@@ -14,13 +14,9 @@ cd client && deno test src/accumulator_test.ts
 
 Expected output:
 ```
-running 16 tests from ./src/accumulator_test.ts
+running 12 tests from ./src/accumulator_test.ts
 createFocusAccumulator returns zeroed accumulator ... ok
 recordBlur increments blur count ... ok
-getFocusRatio returns 1 when fully focused ... ok
-getFocusRatio returns 0 when fully unfocused ... ok
-getFocusRatio returns 0.5 when equally focused and unfocused ... ok
-getFocusRatio returns 1 when no time recorded ... ok
 createInputStats returns zeroed stats ... ok
 recordInput with positive delta increments typedChars ... ok
 recordInput with negative delta increments deletedChars ... ok
@@ -32,7 +28,7 @@ recordKey with altKey increments altCount ... ok
 recordKey with shiftKey increments shiftCount ... ok
 resetAccumulators zeros all counters ... ok
 
-ok | 16 passed | 0 failed
+ok | 12 passed | 0 failed
 ```
 
 ## API
@@ -50,10 +46,6 @@ Adds milliseconds to focused time (called periodically while page is visible).
 
 #### `recordUnfocusedTime(focus: FocusAccumulator, ms: number): void`
 Adds milliseconds to unfocused time (called periodically while page is hidden).
-
-#### `getFocusRatio(focus: FocusAccumulator): number`
-Calculates focus ratio: `focusedTimeMs / (focusedTimeMs + unfocusedTimeMs)`.
-Returns `1` if no time has been recorded yet.
 
 ### Input Stats
 

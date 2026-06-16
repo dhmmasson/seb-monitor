@@ -1,41 +1,28 @@
-# esbuild Configuration Module
+# Client Build
 
 ## What It Does
 
-The build module provides esbuild configuration for bundling the client-side TypeScript into a single IIFE JS file. This configuration is used to create `dist/seb-monitor.js` for embedding in Moodle/SEB.
+The build script (`client/build.ts`) bundles the client-side TypeScript into a single IIFE JS file using esbuild. This produces `dist/seb-monitor.js` for embedding in Moodle/SEB.
 
 ## How to Verify It Works
 
-1. Run the unit tests:
-   ```bash
-   cd client && deno test src/build_test.ts
-   ```
+Build the client library:
+```bash
+cd client && deno run -A build.ts
+```
 
-2. All 8 tests should pass:
-   - `createBuildConfig returns config object`
-   - `createBuildConfig sets entry point to index.ts`
-   - `createBuildConfig enables bundling`
-   - `createBuildConfig sets format to iife`
-   - `createBuildConfig sets output to dist/seb-monitor.js`
-   - `createBuildConfig enables minification`
-   - `createBuildConfig targets browser`
-   - `createBuildConfig disables platform-specific features`
+The output file `dist/seb-monitor.js` should be created.
 
-## API
+## Build Configuration
 
-### `createBuildConfig()`
+The build uses esbuild with these settings:
 
-Creates esbuild build configuration for bundling the client library.
-
-**Returns:** `BuildConfig` object with the following properties:
-
-- `entryPoints: ["src/index.ts"]` - Entry point for the bundle
-- `bundle: true` - Enable bundling (include all imports)
-- `format: "iife"` - Output as immediately invoked function expression
-- `outfile: "dist/seb-monitor.js"` - Output file path
-- `minify: true` - Enable minification for smaller file size
-- `target: "es2020"` - Target modern browsers (including SEB's Chromium)
-- `platform: "browser"` - Browser platform (no Node.js APIs)
+- **Entry point:** `src/index.ts`
+- **Format:** IIFE (immediately invoked function expression)
+- **Output:** `dist/seb-monitor.js`
+- **Minification:** enabled
+- **Target:** ES2020 (modern browsers, including SEB's Chromium)
+- **Platform:** browser (no Node.js APIs)
 
 ## Build Output
 
@@ -44,20 +31,6 @@ The build produces a single file `dist/seb-monitor.js` that:
 - Is minified for small file size (~15 KB)
 - Can be embedded via `<script src="…/seb-monitor.js"></script>`
 - Doesn't pollute the global scope (IIFE pattern)
-
-## Usage
-
-To build the client library:
-```bash
-cd client
-deno run -A build.ts
-```
-
-Or using esbuild directly:
-```bash
-cd client
-deno run -A npm:esbuild --bundle --format=iife --minify --target=es2020 --platform=browser --outfile=dist/seb-monitor.js src/index.ts
-```
 
 ## Spec Reference
 

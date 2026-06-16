@@ -30,16 +30,6 @@ export function recordBlur(focus: FocusAccumulator): void {
 }
 
 /**
- * Calculate focus ratio: focusedTime / (focusedTime + unfocusedTime).
- * Returns 1 if no time has been recorded yet.
- */
-export function getFocusRatio(focus: FocusAccumulator): number {
-  const total = focus.focusedTimeMs + focus.unfocusedTimeMs;
-  if (total === 0) return 1;
-  return focus.focusedTimeMs / total;
-}
-
-/**
  * Create a new InputStats with zeroed values.
  */
 export function createInputStats(): InputStats {

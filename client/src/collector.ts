@@ -1,20 +1,11 @@
 /**
- * Collector module for monitoring browser events.
- * Attaches event listeners for copy, paste, focus, blur, keydown, and input events.
- * Maintains an event buffer that is sent with each heartbeat.
+ * Collector interface for managing event listeners and buffer.
+ * Used by the heartbeat builder to access event state.
  *
  * @module collector
  */
 
-import type {
-  ExamEvent,
-  FocusAccumulator,
-  InputStats,
-  KeyStats,
-} from "../../shared/types.ts";
-
-/** Callback type for sending paste content to server */
-export type SendPasteContent = (content: string, hash: string) => Promise<void>;
+import type { ExamEvent } from "../../shared/types.ts";
 
 /** Collector interface for managing event listeners and buffer */
 export interface Collector {
@@ -24,6 +15,12 @@ export interface Collector {
   stop(): void;
   /** Get buffered events */
   getEvents(): ExamEvent[];
+  /** Record an event in the buffer */
+  record(event: ExamEvent): void;
+  /** Record a copy event */
+  recordCopy(): void;
+  /** Record a paste event */
+  recordPaste(): void;
   /** Clear event buffer and reset counts */
   clearEvents(): void;
   /** Get total copy count since last clear */
@@ -34,26 +31,18 @@ export interface Collector {
 
 /**
  * Create a new event collector.
+ * Manages the event buffer and copy/paste counts for heartbeat reporting.
+ * Event listeners are attached by the caller (index.ts).
  *
- * @param focus - Focus accumulator to update on focus/blur events
- * @param input - Input stats to update on input events
- * @param keys - Key stats to update on keydown events
- * @param sendPasteContent - Callback to send paste content to server immediately
  * @returns Collector instance
  */
-export function createCollector(
-  _focus: FocusAccumulator,
-  _input: InputStats,
-  _keys: KeyStats,
-  _sendPasteContent: SendPasteContent,
-): Collector {
+export function createCollector(): Collector {
   // Internal state
   const events: ExamEvent[] = [];
   let copyCount = 0;
   let pasteCount = 0;
   let _started = false;
 
-  // Public API
   return {
     start(): void {
       _started = true;
@@ -62,8 +51,16 @@ export function createCollector(
       _started = false;
     },
     getEvents(): ExamEvent[] {
-      // Return a copy to prevent external mutation
       return [...events];
+    },
+    record(event: ExamEvent): void {
+      events.push(event);
+    },
+    recordCopy(): void {
+      copyCount++;
+    },
+    recordPaste(): void {
+      pasteCount++;
     },
     clearEvents(): void {
       events.length = 0;

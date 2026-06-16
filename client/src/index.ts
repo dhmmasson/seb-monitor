@@ -24,13 +24,10 @@ import {
   resetAccumulators,
 } from "./accumulator.ts";
 import { sha256 } from "./crypto.ts";
+import { createCollector } from "./collector.ts";
 import { createHeartbeatBuilder } from "./heartbeat.ts";
 import { createSender } from "./sender.ts";
-import type {
-  ExamEvent,
-  FocusAccumulator,
-  InputStats,
-} from "../../shared/types.ts";
+import type { FocusAccumulator, InputStats } from "../../shared/types.ts";
 
 /** Result of initialization */
 export interface InitResult {
@@ -140,17 +137,15 @@ export function initialize(
   const focus: FocusAccumulator = createFocusAccumulator();
   const input: InputStats = createInputStats();
   const keys = createKeyStats();
+  const collector = createCollector();
 
   // State
-  const events: ExamEvent[] = [];
   const pendingPastes: {
     hash: string;
     content: string;
     length: number;
     timestamp: number;
   }[] = [];
-  let copyCount = 0;
-  let pasteCount = 0;
   let lastFocusTime = Date.now();
   let isFocused = typeof document !== "undefined"
     ? document.visibilityState === "visible"
@@ -190,28 +185,7 @@ export function initialize(
     focus,
     input,
     keys,
-    {
-      start() {
-        _started = true;
-      },
-      stop() {
-        _started = false;
-      },
-      getEvents() {
-        return [...events];
-      },
-      clearEvents() {
-        events.length = 0;
-        copyCount = 0;
-        pasteCount = 0;
-      },
-      getCopyCount() {
-        return copyCount;
-      },
-      getPasteCount() {
-        return pasteCount;
-      },
-    },
+    collector,
   );
 
   // --- Event Handlers ---
@@ -224,14 +198,14 @@ export function initialize(
         focus.unfocusedTimeMs += now - lastFocusTime;
         isFocused = true;
         lastFocusTime = now;
-        events.push({ type: "focus", timestamp: now });
+        collector.record({ type: "focus", timestamp: now });
       }
     } else {
       if (isFocused) {
         focus.focusedTimeMs += now - lastFocusTime;
         isFocused = false;
         lastFocusTime = now;
-        events.push({ type: "blur", timestamp: now });
+        collector.record({ type: "blur", timestamp: now });
       }
     }
   }
@@ -242,7 +216,7 @@ export function initialize(
       focus.unfocusedTimeMs += now - lastFocusTime;
       isFocused = true;
       lastFocusTime = now;
-      events.push({ type: "focus", timestamp: now });
+      collector.record({ type: "focus", timestamp: now });
     }
   }
 
@@ -253,20 +227,19 @@ export function initialize(
       isFocused = false;
       recordBlur(focus);
       lastFocusTime = now;
-      events.push({ type: "blur", timestamp: now });
+      collector.record({ type: "blur", timestamp: now });
     }
   }
 
   async function handleCopy(): Promise<void> {
-    const selection =
-      typeof globalThis !== "undefined" &&
+    const selection = typeof globalThis !== "undefined" &&
         typeof globalThis.getSelection === "function"
-        ? globalThis.getSelection()?.toString() ?? ""
-        : "";
+      ? globalThis.getSelection()?.toString() ?? ""
+      : "";
     if (selection) {
       const hash = await sha256(selection);
-      copyCount++;
-      events.push({
+      collector.recordCopy();
+      collector.record({
         type: "copy",
         timestamp: Date.now(),
         hash,
@@ -280,10 +253,10 @@ export function initialize(
     const pastedText = e.clipboardData?.getData("text") ?? "";
     if (pastedText) {
       const hash = await sha256(pastedText);
-      pasteCount++;
+      collector.recordPaste();
       lastInputWasPaste = true;
 
-      events.push({
+      collector.record({
         type: "paste",
         timestamp: Date.now(),
         hash,
@@ -353,9 +326,7 @@ export function initialize(
 
       // Reset after successful send
       resetAccumulators(focus, input, keys);
-      events.length = 0;
-      copyCount = 0;
-      pasteCount = 0;
+      collector.clearEvents();
     } catch {
       // Silent failure — will retry on next interval
     }

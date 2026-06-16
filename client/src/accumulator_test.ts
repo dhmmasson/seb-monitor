@@ -3,7 +3,6 @@ import {
   createFocusAccumulator,
   createInputStats,
   createKeyStats,
-  getFocusRatio,
   recordBlur,
   recordInput,
   recordKey,
@@ -30,38 +29,6 @@ Deno.test("recordBlur increments blur count", () => {
   assertEquals(focus.blurCount, 1);
   recordBlur(focus);
   assertEquals(focus.blurCount, 2);
-});
-
-Deno.test("getFocusRatio returns 1 when fully focused", () => {
-  const focus: FocusAccumulator = {
-    focusedTimeMs: 60000,
-    unfocusedTimeMs: 0,
-    blurCount: 0,
-  };
-  assertEquals(getFocusRatio(focus), 1);
-});
-
-Deno.test("getFocusRatio returns 0 when fully unfocused", () => {
-  const focus: FocusAccumulator = {
-    focusedTimeMs: 0,
-    unfocusedTimeMs: 60000,
-    blurCount: 0,
-  };
-  assertEquals(getFocusRatio(focus), 0);
-});
-
-Deno.test("getFocusRatio returns 0.5 when equally focused and unfocused", () => {
-  const focus: FocusAccumulator = {
-    focusedTimeMs: 30000,
-    unfocusedTimeMs: 30000,
-    blurCount: 0,
-  };
-  assertEquals(getFocusRatio(focus), 0.5);
-});
-
-Deno.test("getFocusRatio returns 1 when no time recorded", () => {
-  const focus = createFocusAccumulator();
-  assertEquals(getFocusRatio(focus), 1);
 });
 
 // ===== Input Stats Tests =====
