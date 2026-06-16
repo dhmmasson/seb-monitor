@@ -3,27 +3,30 @@
  * Uses esbuild via npm:esbuild.
  *
  * Usage: deno run -A client/build.ts
+ *        (works from any directory)
  */
 import esbuild from "npm:esbuild";
-import { createBuildConfig } from "./src/build.ts";
+import { resolve, fromFileUrl } from "https://deno.land/std/path/mod.ts";
 
-const config = createBuildConfig();
+// Resolve paths relative to this script's location
+const SCRIPT_DIR = fromFileUrl(new URL(".", import.meta.url));
+const ENTRY_POINT = resolve(SCRIPT_DIR, "src/index.ts");
+const OUT_FILE = resolve(SCRIPT_DIR, "dist/seb-monitor.js");
 
 console.log("Building client library...");
-console.log(`  Entry: ${config.entryPoints[0]}`);
-console.log(`  Output: ${config.outfile}`);
-console.log(`  Format: ${config.format}`);
+console.log(`  Entry: ${ENTRY_POINT}`);
+console.log(`  Output: ${OUT_FILE}`);
 
 await esbuild.build({
-  entryPoints: config.entryPoints,
-  bundle: config.bundle,
-  format: config.format as "iife",
-  outfile: config.outfile,
-  minify: config.minify,
-  target: config.target,
-  platform: config.platform as "browser",
+  entryPoints: [ENTRY_POINT],
+  bundle: true,
+  format: "iife",
+  outfile: OUT_FILE,
+  minify: true,
+  target: "es2020",
+  platform: "browser",
 });
 
-console.log(`✅ Build complete → ${config.outfile}`);
+console.log(`✅ Build complete → ${OUT_FILE}`);
 
 esbuild.stop();
