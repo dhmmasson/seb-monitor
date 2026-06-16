@@ -1,8 +1,11 @@
 /**
  * Dashboard routes — protected by cookie-based authentication.
  * GET /dashboard — exam index (all exams with student counts)
- * GET /dashboard/:examId — exam overview with student table
- * GET /dashboard/:examId/student/:sessionId — student detail
+ * GET /dashboard/:encodedExamId — exam overview with student table
+ * GET /dashboard/:encodedExamId/student/:sessionId — student detail
+ *
+ * Exam IDs are base64url-encoded in URLs (see url-ids.ts) so that
+ * full URLs like "https://moodle.example.com/exam/123" work as path segments.
  */
 import type { DB } from "sqlite";
 import { verifyCookie } from "../services/auth.ts";
