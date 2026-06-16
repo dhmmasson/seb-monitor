@@ -55,7 +55,7 @@ export function computeSessionMetrics(
   const deleted = Number(hbRows[0]?.[6] ?? 0);
 
   const totalFocusTime = focused + unfocused;
-  const focusRatio = totalFocusTime > 0 ? focused / totalFocusTime : 0;
+  const focusRatio = totalFocusTime > 0 ? focused / totalFocusTime : 1;
 
   const totalInput = typed + pastedChars + deleted;
   const pasteRatio = totalInput > 0 ? pastedChars / totalInput : 0;

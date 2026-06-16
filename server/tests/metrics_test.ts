@@ -217,7 +217,11 @@ Deno.test("computeSessionMetrics: handles session with no heartbeats", () => {
     // No heartbeats inserted
 
     const metrics = computeSessionMetrics(db, session.sessionId);
-    assertEquals(metrics.focusRatio, 0, "focus ratio should be 0 with no data");
+    assertEquals(
+      metrics.focusRatio,
+      1,
+      "focus ratio should be 1 with no data (default: focused)",
+    );
     assertEquals(metrics.pasteRatio, 0, "paste ratio should be 0 with no data");
     assertEquals(metrics.totalCopyCount, 0, "copy count should be 0");
     assertEquals(metrics.totalPasteCount, 0, "paste count should be 0");

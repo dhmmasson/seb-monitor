@@ -34,7 +34,7 @@ Returns all sessions for an exam, each with computed metrics. Used by the exam l
 
 ## Known Limitations
 
-- `focusRatio` returns 0 when no heartbeats exist (division by zero guard).
+- `focusRatio` returns 1 when no heartbeats exist (default assumption: student is focused).
 - Metrics are computed on every request — no caching layer yet.
 
 ## Spec Reference
