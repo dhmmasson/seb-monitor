@@ -10,14 +10,36 @@ A lightweight client/server system for monitoring student activity during online
 |---|---|---|
 | Phase 1 — Client Library | ✅ Complete | v0.1.0 |
 | Phase 2 — Server Core | ✅ Complete | v0.2.0 |
-| Phase 3 — Docker | ⬜ Not started | — |
-| Phase 4 — Dashboard | ⬜ Not started | — |
+| Phase 3 — Docker | ✅ Complete | v0.5.0 |
+| Phase 4 — Dashboard | ✅ Complete | v0.4.0 |
 | Phase 5 — Resilience | ⬜ Not started | — |
 | Phase 6 — Moodle Integration | ⬜ Not started | — |
 
 ## Quick Start
 
-### Run the Server
+### Docker (Production)
+
+```bash
+# Build and start
+docker compose up -d
+
+# Check health
+curl http://localhost:8000/health
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+The server starts on port 8000 with:
+- **Client JS**: http://localhost:8000/seb-monitor.js
+- **API**: http://localhost:8000/api/heartbeat
+- **Dashboard**: http://localhost:8000/dashboard
+- **Health**: http://localhost:8000/health
+
+### Run from Source (Development)
 
 ```bash
 cd server
@@ -27,8 +49,9 @@ deno task dev    # starts on port 8000
 ### Run Tests
 
 ```bash
-cd server && deno task test    # 28 server tests
-cd client && deno test         # 73 client tests
+cd server && deno task test    # 91 server tests
+cd client && deno test         # 74 client tests
+deno task test:docker          # Docker integration tests (requires Docker)
 ```
 
 ### Run the Demo
@@ -123,6 +146,62 @@ sebMonitoring/
 | Client | TypeScript → IIFE | Single file, no framework, embeddable |
 | Testing | Deno built-in test runner | Fast, no config |
 
+## Docker Deployment
+
+### Build the Image
+
+```bash
+docker build -t seb-monitor .
+```
+
+### Run with Docker Compose
+
+```bash
+cp .env.example .env   # configure passwords
+docker compose up -d
+```
+
+### Run with Docker
+
+```bash
+docker run -d \
+  --name seb-monitor \
+  -p 8000:8000 \
+  -v seb-data:/data \
+  -e DASHBOARD_PASSWORD=your-secret-password \
+  -e COOKIE_SECRET=your-32-char-secret-here \
+  seb-monitor
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `8000` | Server listen port |
+| `DB_PATH` | `/data/seb-monitor.db` | SQLite database path |
+| `DASHBOARD_PASSWORD` | — | Dashboard login password (required for dashboard access) |
+| `DASHBOARD_PASSWORD_HASH` | — | Pre-computed PBKDF2 hash (alternative to plaintext password) |
+| `COOKIE_SECRET` | `change-me-in-production` | HMAC-SHA256 secret for signing auth cookies |
+
+### Volumes
+
+| Mount | Description |
+|---|---|
+| `/data` | SQLite database storage — mount a volume to persist data across container restarts |
+
+### Health Check
+
+The container includes a built-in health check:
+
+```bash
+# From host
+curl http://localhost:8000/health
+# → {"status":"ok"}
+
+# Docker health status
+docker inspect --format='{{.State.Health.Status}}' seb-monitor
+```
+
 ## Configuration
 
 ### Server (environment variables)
@@ -130,7 +209,10 @@ sebMonitoring/
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `8000` | Server listen port |
-| `DB_PATH` | `:memory:` | SQLite database path |
+| `DB_PATH` | `:memory:` | SQLite database path (use `/data/seb-monitor.db` in Docker) |
+| `DASHBOARD_PASSWORD` | — | Dashboard login password |
+| `DASHBOARD_PASSWORD_HASH` | — | Pre-computed PBKDF2 hash (alternative) |
+| `COOKIE_SECRET` | `change-me-in-production` | Cookie signing secret |
 
 ### Client (script data-attributes)
 

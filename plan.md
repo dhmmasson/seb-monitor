@@ -299,7 +299,7 @@ CREATE INDEX idx_paste_contents_exam ON paste_contents(exam_id);
 
 **Deliverable**: Server that accepts heartbeats and stores them in SQLite.
 
-### Phase 3 — Dockerization
+### Phase 3 — Dockerization ✅ COMPLETE (v0.5.0)
 
 **Goal**: Self-contained Docker image.
 
