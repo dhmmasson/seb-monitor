@@ -12,8 +12,8 @@ The server receives telemetry from the SEB monitoring client and stores it in SQ
 ## Architecture
 
 ```
-Client → POST /api/heartbeat → Oak Router → findOrCreate(session) → insertHeartbeat + insertEvents → SQLite
-Client → POST /api/paste     → Oak Router → insertPasteContent → SQLite
+Client → POST /api/heartbeat → Deno.serve() → findOrCreate(session) → insertHeartbeat + insertEvents → SQLite
+Client → POST /api/paste     → Deno.serve() → insertPasteContent → SQLite
 ```
 
 ### Database Tables

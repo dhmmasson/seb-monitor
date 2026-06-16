@@ -10,7 +10,7 @@ HTTP routes for the instructor dashboard with cookie-based authentication. All `
 cd server && deno test tests/dashboard_test.ts --no-check
 ```
 
-All 7 tests should pass.
+All 8 tests should pass.
 
 ## Routes
 
@@ -31,7 +31,7 @@ All 7 tests should pass.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/dashboard` | Exam overview — shows first exam or empty state |
+| `GET` | `/dashboard` | Exam index — lists all exams with student counts |
 | `GET` | `/dashboard/:examId` | Student table for a specific exam |
 | `GET` | `/dashboard/:examId/student/:sessionId` | Per-student detail view |
 

@@ -55,9 +55,9 @@ Deno compiles to a single executable via `deno compile`, or runs directly from s
 | **Rendering** | Server-side rendered (SSR) HTML — no SPA framework needed |
 | **Styling** | Minimal CSS, possibly Tailwind via CDN or plain styles |
 | **Charts** | Lightweight chart library (Chart.js or uPlot) loaded from a CDN or bundled |
-| **Authentication** | Single shared password (configurable via env var), stored as a bcrypt hash |
-| **URL scheme** | `/dashboard/{uuid}` — each exam gets a unique unguessable URL |
-| **Session management** | Signed cookie after password entry, short TTL |
+| **Authentication** | Single shared password (configurable via env var), stored as a PBKDF2 hash |
+| **URL scheme** | `/dashboard/{encodedExamId}` — base64url-encoded exam IDs (handles full Moodle URLs) |
+| **Session management** | Signed cookie after password entry (HMAC-SHA256), HttpOnly, SameSite=Strict |
 
 **Why SSR over SPA?**
 The dashboard is read-only and low-traffic (instructors checking during/after exams). SSR avoids build complexity, works without JavaScript for the table view, and keeps the server self-contained. Charts degrade gracefully.
@@ -70,53 +70,52 @@ The dashboard is read-only and low-traffic (instructors checking during/after ex
 sebMonitoring/
 ├── vision.md                    # Original specification
 ├── plan.md                      # This file
+├── README.md                    # Setup and usage instructions
 │
 ├── client/                      # Browser-side monitoring library
 │   ├── src/
-│   │   ├── index.ts             # Entry point — IIFE wrapper
-│   │   ├── collector.ts         # Event listeners (copy, paste, focus, keys)
-│   │   ├── heartbeat.ts         # Heartbeat timer + payload construction
+│   │   ├── index.ts             # Entry point — IIFE, auto-start, event wiring
+│   │   ├── collector.ts         # Event buffer management
+│   │   ├── heartbeat.ts         # Heartbeat payload construction + reset
 │   │   ├── crypto.ts            # SHA-256 hashing (Web Crypto API)
 │   │   ├── accumulator.ts       # Focus time, input stats, key stats
-│   │   └── sender.ts            # fetch() wrapper with retry + offline buffer
+│   │   └── sender.ts            # fetch() with retry, returns sessionId
 │   ├── build.ts                 # esbuild build script
-│   ├── deno.json                # Deno config for type-checking client code
-│   └── README.md                # Integration instructions for Moodle
+│   └── dist/seb-monitor.js      # Built IIFE bundle (~5 KB)
 │
 ├── server/                      # Deno backend
 │   ├── src/
-│   │   ├── main.ts              # Entry point — starts HTTP server
-│   │   ├── config.ts            # Env vars, defaults
+│   │   ├── main.ts              # Entry point — HTTP server + static serving
 │   │   ├── db/
 │   │   │   ├── schema.ts        # Table definitions + migrations
 │   │   │   ├── connection.ts    # SQLite connection singleton
 │   │   │   ├── sessions.ts      # Session CRUD
-│   │   │   ├── heartbeats.ts    # Heartbeat inserts + queries
-│   │   │   └── events.ts        # Event inserts + queries
+│   │   │   ├── heartbeats.ts    # Heartbeat storage
+│   │   │   ├── events.ts        # Event storage
+│   │   │   ├── paste_contents.ts # Paste content storage
+│   │   │   └── utils.ts         # Shared queryAll helper
 │   │   ├── routes/
-│   │   │   ├── api.ts           # POST /api/heartbeat — receives telemetry
-│   │   │   ├── paste.ts         # POST /api/paste — receives paste content
-│   │   │   ├── dashboard.ts     # GET /dashboard/* — SSR pages
-│   │   │   └── auth.ts          # POST /auth/login — password check
+│   │   │   ├── api.ts           # POST /api/heartbeat, /api/paste, GET /health
+│   │   │   ├── auth.ts          # GET/POST /auth/login
+│   │   │   ├── dashboard.ts     # GET /dashboard/* — SSR with auth
+│   │   │   ├── url-ids.ts       # Base64url exam ID encoding
+│   │   │   └── utils.ts         # html, json, redirect, CORS helpers
 │   │   ├── services/
-│   │   │   ├── session.ts       # Session creation/lookup logic
-│   │   │   ├── metrics.ts       # Derived metric computation
-│   │   │   └── exam.ts          # Exam-level aggregation
+│   │   │   ├── auth.ts          # PBKDF2 + HMAC-SHA256 cookie signing
+│   │   │   └── metrics.ts       # Derived metrics + exam aggregation
 │   │   └── views/
-│   │       ├── layout.ts        # HTML layout wrapper
-│   │       ├── login.ts         # Password entry page
-│   │       ├── exam-list.ts     # Table of students for an exam
-│   │       └── student-detail.ts # Per-student graphs + timeline
-│   ├── deno.json                # Deno config + import map
-│   ├── Dockerfile               # Multi-stage build → distroless
-│   ├── docker-compose.yml       # Single-service compose file
-│   └── tests/
-│       ├── api_test.ts
-│       ├── metrics_test.ts
-│       └── db_test.ts
+│   │       ├── layout.ts        # HTML shell with CSS
+│   │       ├── login.ts         # Password form
+│   │       ├── exam-index.ts    # All-exams listing
+│   │       ├── exam-list.ts     # Per-exam student table
+│   │       ├── student-detail.ts # Per-student detail + charts
+│   │       └── utils.ts         # escapeHtml
+│   └── tests/                   # 9 test files, 91 tests
 │
-└── shared/                      # Types shared between client and server
-    └── types.ts                 # HeartbeatPayload, ExamEvent, etc.
+├── shared/types.ts              # HeartbeatPayload, ExamEvent, etc.
+├── docs/features/               # Feature documentation
+├── docs/demos/                  # demo.sh, exam.html
+└── demo/                        # Legacy inline demo
 ```
 
 ---
@@ -271,15 +270,14 @@ CREATE INDEX idx_paste_contents_exam ON paste_contents(exam_id);
 |---|---|---|
 | 1.1 | Scaffold `client/` directory | `deno.json`, `build.ts` with esbuild, entry point |
 | 1.2 | Implement `crypto.ts` | SHA-256 hashing via Web Crypto API (`SubtleCrypto`) |
-| 1.3 | Implement `accumulator.ts` | Focus time accumulator (polls `document.visibilityState` every 1s), input stats tracker, key stats counter |
-| 1.4 | Implement `collector.ts` | Attach `copy`, `paste`, `focus`, `blur`, `keydown`, `input` event listeners; maintain event buffer; on paste: immediately send content to `POST /api/paste` (fire-and-forget with retry) |
-| 1.5 | Implement `heartbeat.ts` | 60-second interval timer; builds `HeartbeatPayload` from accumulators + event buffer; resets after send |
-| 1.6 | Implement `sender.ts` | `fetch()` with retry (3 attempts, exponential backoff); offline buffering in `localStorage` |
-| 1.7 | Wire entry point as IIFE | Self-executing function that reads DOM IDs, initializes collectors, starts heartbeat |
-| 1.8 | Build script | `deno run -A client/build.ts` → outputs `dist/seb-monitor.js` (single file, minified) |
-| 1.9 | Manual testing | Load in browser, verify console output, test copy/paste/focus events |
+| 1.3 | Implement `accumulator.ts` | Focus time accumulator, input stats tracker, key stats counter, `resetAccumulators()` |
+| 1.4 | Implement `collector.ts` | Event buffer management, copy/paste count tracking, `clearEvents()` for post-heartbeat reset |
+| 1.5 | Implement `heartbeat.ts` | Builds `HeartbeatPayload` from accumulators + collector; `reset()` calls `resetAccumulators()` + `clearEvents()` |
+| 1.6 | Implement `sender.ts` | `fetch()` with retry (3 attempts, exponential backoff); returns parsed JSON response with `sessionId` |
+| 1.7 | Wire entry point as IIFE | Reads `data-*` attributes from `<script>` tag, auto-starts on load, sends initial heartbeat immediately, buffers paste content until `sessionId` is established |
+| 1.8 | Build script | `deno run -A client/build.ts` → outputs `dist/seb-monitor.js` (~5 KB minified IIFE) |
 
-**Deliverable**: `dist/seb-monitor.js` — a single ~15 KB file ready to embed.
+**Deliverable**: `dist/seb-monitor.js` — a single ~5 KB IIFE file ready to embed.
 
 ### Phase 2 — Server Core ✅ COMPLETE (v0.2.0 + v0.3.0)
 
@@ -322,19 +320,18 @@ CREATE INDEX idx_paste_contents_exam ON paste_contents(exam_id);
 
 | # | Task | Details |
 |---|---|---|
-| 4.1 | Implement `routes/auth.ts` | Login page (SSR form), password verification (bcrypt), signed cookie |
-| 4.2 | Implement `views/layout.ts` | HTML shell with `<head>`, nav, content slot |
-| 4.3 | Implement `views/login.ts` | Simple password form |
-| 4.4 | Implement `views/exam-list.ts` | **Exam overview page**: table with columns — Student ID, Focus Ratio, Paste Ratio, Total Events, Copy Count, Paste Count, Activity Timeline sparkline |
-| 4.5 | Implement `services/metrics.ts` | Compute derived metrics from heartbeats: focus ratio, paste ratio, unmatched paste count, largest paste, largest text growth |
-| 4.6 | Implement `services/exam.ts` | Aggregate per-exam: list all sessions, compute metrics per student |
-| 4.7 | Implement `views/student-detail.ts` | **Per-student page**: charts — focus over time, input activity over time, key activity, copy/paste event timeline with **clickable paste hashes** that expand to show pasted content, raw event table |
-| 4.7b | Implement paste content display | In student detail view, paste events with stored content show a toggle/expand to reveal the actual pasted text; unmatched pastes are highlighted |
-| 4.8 | Integrate chart library | uPlot (tiny, fast) or Chart.js — bundled or CDN-loaded in the detail view |
-| 4.9 | Route wiring | Protect `/dashboard/*` routes with auth middleware |
-| 4.10 | UUID exam mapping | Generate UUID per exam on first heartbeat; instructor accesses `/dashboard/{uuid}` |
+| 4.1 | Implement `routes/auth.ts` | Login page (SSR form), password verification (PBKDF2 via Web Crypto API), signed cookie (HMAC-SHA256) |
+| 4.2 | Implement `views/layout.ts` | HTML shell with `<head>`, nav, embedded CSS, content slot |
+| 4.3 | Implement `views/login.ts` | Simple password form with error display |
+| 4.4 | Implement `views/exam-index.ts` + `views/exam-list.ts` | **Exam index**: `/dashboard` lists all exams with student counts. **Exam list**: `/dashboard/:examId` table with Student ID, Focus Ratio, Paste Ratio, Copies, Pastes, Unmatched, Largest Paste |
+| 4.5 | Implement `services/metrics.ts` | Compute derived metrics: focus ratio, paste ratio, unmatched paste count, largest paste. Includes `computeExamSummary()` for per-exam aggregation (replaces separate `services/exam.ts`) |
+| 4.7 | Implement `views/student-detail.ts` | **Per-student page**: metric summary cards, Chart.js timeline (focus/typed/pasted over time), event table with **clickable paste content expand**, unmatched paste highlighting, **heartbeat entries** in timeline |
+| 4.7b | Implement paste content display | Paste events with stored content show a toggle/expand to reveal the actual pasted text; unmatched pastes are highlighted |
+| 4.8 | Integrate chart library | Chart.js via CDN — loaded in the student detail view |
+| 4.9 | Route wiring + static serving | Protect `/dashboard/*` routes with auth middleware. Server serves `/seb-monitor.js` and `/exam.html` as static files |
+| 4.10 | URL-safe exam ID encoding | Base64url encoding (RFC 4648 §5) for exam IDs in URLs — handles full Moodle URLs with slashes/colons. `encodeExamId()`/`decodeExamId()` in `routes/url-ids.ts` |
 
-**Deliverable**: Functional dashboard — login → exam table → student detail with charts.
+**Deliverable**: Functional dashboard — login → exam index → exam table → student detail with charts and paste viewer.
 
 ### Phase 5 — Resilience & Polish
 
@@ -375,11 +372,12 @@ All configuration via environment variables (with defaults):
 |---|---|---|
 | `PORT` | `8000` | Server listen port |
 | `DB_PATH` | `/data/seb-monitor.db` | SQLite database file path |
-| `DASHBOARD_PASSWORD` | *(required)* | Plain-text password for dashboard (hashed at startup) |
-| `DASHBOARD_PASSWORD_HASH` | — | Pre-computed bcrypt hash (alternative to plain text) |
+| `DASHBOARD_PASSWORD` | *(required)* | Plain-text password for dashboard (hashed at startup via PBKDF2) |
+| `DASHBOARD_PASSWORD_HASH` | — | Pre-computed PBKDF2 hash (alternative to plain text) |
+| `COOKIE_SECRET` | `change-me-in-production-32chars!!` | Secret for HMAC-SHA256 cookie signing |
 | `HEARTBEAT_INTERVAL_MS` | `60000` | Client heartbeat interval |
 | `DATA_RETENTION_DAYS` | `90` | Auto-delete data older than this |
-| `PASTE_CONTENT_RETENTION_DAYS` | `30` | Auto-delete stored paste content older than this (more aggressive than heartbeat data) |
+| `PASTE_CONTENT_RETENTION_DAYS` | `30` | Auto-delete stored paste content older than this |
 | `CORS_ORIGIN` | `*` | Allowed origins for API requests |
 | `LOG_LEVEL` | `info` | Logging verbosity |
 

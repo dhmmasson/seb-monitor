@@ -2,69 +2,68 @@
 
 ## What It Does
 
-The index module is the main entry point for the SEB monitoring library. It initializes the monitoring system by reading student/exam IDs from DOM elements and provides start/stop methods for controlling the heartbeat timer.
+The index module is the main entry point for the SEB monitoring library. When loaded as an IIFE `<script>` tag, it auto-initializes by reading configuration from `data-*` attributes, attaches all event listeners, and starts sending heartbeats.
 
 ## How to Verify It Works
 
-1. Run the unit tests:
-   ```bash
-   cd client && deno test src/index_test.ts
-   ```
+```bash
+cd client && deno test src/index_test.ts --no-check
+```
 
-2. All 9 tests should pass:
-   - `initialize returns initialization result`
-   - `initialize extracts student ID from DOM`
-   - `initialize extracts exam ID from DOM`
-   - `initialize uses default question ID`
-   - `initialize throws when theuser element not found`
-   - `initialize throws when themodule element not found`
-   - `initialize throws when theexam element not found`
-   - `start begins heartbeat timer`
-   - `stop ends heartbeat timer`
+All tests should pass.
+
+## Usage (Production)
+
+```html
+<script src="http://monitor.example.com/seb-monitor.js"
+  data-student-id="{fullname}"
+  data-module-id="{module}"
+  data-exam-id="{thisurl}"
+  data-server-url="https://monitor.example.com"
+  data-question-id="q3">
+</script>
+```
+
+The library auto-starts on load. No manual initialization needed.
 
 ## API
 
-### `initialize(serverUrl, getElementById?)`
+### `initialize(scriptElement?, documentRef?)`
 
-Initialize the monitoring system.
+Initialize the monitoring system from a `<script>` tag's data attributes.
 
 **Parameters:**
-- `serverUrl: string` - URL of the monitoring server
-- `getElementById?: GetElementByIdFn` - Function to get DOM elements (default: document.getElementById)
+- `scriptElement?: HTMLScriptElement` — The script element (auto-discovered via `querySelector("script[data-student-id]")` if not provided)
+- `documentRef?` — Document reference for auto-discovery (default: global document)
 
-**Returns:** `InitResult` with the following properties and methods:
+**Returns:** `InitResult` with:
 
-- `studentId: string` - Student ID extracted from DOM (`#theuser`)
-- `examId: string` - Exam ID extracted from DOM (`#theexam`)
-- `questionId: string` - Question ID (default: "default")
-- `start()` - Start the heartbeat timer and event collection
-- `stop()` - Stop the heartbeat timer and event collection
+- `studentId: string` — From `data-student-id`
+- `examId: string` — From `data-exam-id`
+- `serverUrl: string` — From `data-server-url`
+- `questionId: string` — From `data-question-id` or URL params (`slot`/`questionId`)
+- `start()` — Attach event listeners, send initial heartbeat, start 60s timer
+- `stop()` — Detach listeners, clear timer
 
-**Throws:** `Error` if required DOM elements (`#theuser`, `#themodule`, `#theexam`) are not found.
+**Throws:** `Error` if required `data-*` attributes are missing.
 
-## DOM Elements
+## Data Attributes
 
-The initialization reads from these DOM elements:
-
-| Element ID | Purpose | Example Content |
+| Attribute | Required | Description |
 |---|---|---|
-| `#theuser` | Student identifier | "John Doe" |
-| `#themodule` | Module/course identifier | "CS101" |
-| `#theexam` | Exam URL/identifier | "https://moodle.example.com/exam/123" |
+| `data-student-id` | ✅ | Student identifier (e.g. Moodle `{fullname}`) |
+| `data-module-id` | ❌ | Module/course identifier |
+| `data-exam-id` | ✅ | Exam URL or identifier |
+| `data-server-url` | ✅ | Monitoring server URL |
+| `data-question-id` | ❌ | Question ID (falls back to URL `slot` param, then "default") |
 
-These elements are typically injected by the Moodle/SEB integration script.
+## Behavior on Start
 
-## Dependency Injection
-
-The module accepts a `getElementById` function for dependency injection, making it easy to:
-- Test without a real DOM
-- Use alternative DOM querying methods
-- Mock DOM elements in tests
+1. Attaches DOM event listeners (focus, blur, copy, paste, keydown, input)
+2. Sends an **immediate heartbeat** to register the student with the server
+3. Starts a 60-second interval timer for subsequent heartbeats
+4. Exposes `globalThis.__sebMonitor` for external access/debugging
 
 ## Spec Reference
 
-See `vision.md` Section: "High-Level Architecture" for the full specification of client initialization.
-
-## Dependencies
-
-- None (pure TypeScript, no external imports)
+See `vision.md` and `plan.md` Phase 1 for the full specification.

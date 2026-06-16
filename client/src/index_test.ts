@@ -177,19 +177,32 @@ Deno.test("initialize throws when script cannot be found", () => {
   }
 });
 
-Deno.test("start begins heartbeat timer", () => {
-  const script = createMockScript({
-    studentId: "John Doe",
-    moduleId: "CS101",
-    examId: "exam-1",
-    serverUrl: "http://localhost:8000",
-  });
+Deno.test("start begins heartbeat timer", async () => {
+  // Mock global fetch to avoid real network calls and retry timers
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = () =>
+    Promise.resolve(new Response(JSON.stringify({ sessionId: "test" }), {
+      headers: { "Content-Type": "application/json" },
+    }));
 
-  const result = initialize(script);
-  // start() should not throw
-  result.start();
-  // Clean up the interval to avoid leak detection
-  result.stop();
+  try {
+    const script = createMockScript({
+      studentId: "John Doe",
+      moduleId: "CS101",
+      examId: "exam-1",
+      serverUrl: "http://localhost:8000",
+    });
+
+    const result = initialize(script);
+    // start() should not throw, sends initial heartbeat
+    result.start();
+    // Wait for initial heartbeat to complete
+    await new Promise((r) => setTimeout(r, 50));
+    // Clean up
+    result.stop();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 Deno.test("stop ends heartbeat timer", () => {
