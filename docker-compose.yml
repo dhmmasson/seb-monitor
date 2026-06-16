@@ -10,7 +10,7 @@ services:
     build: .
     container_name: seb-monitor
     ports:
-      - "${PORT:-8000}:8000"
+      - "${PORT:-44513}:8000"
     volumes:
       - seb-data:/data
     environment:
@@ -21,7 +21,7 @@ services:
       - DASHBOARD_PASSWORD_HASH=${DASHBOARD_PASSWORD_HASH:-}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      test: [ "CMD", "wget", "-qO-", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 5s
       start_period: 10s
