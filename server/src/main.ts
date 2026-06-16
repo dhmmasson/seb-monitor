@@ -11,8 +11,8 @@ import { getDb, closeDb } from "./db/connection.ts";
 const PORT = parseInt(Deno.env.get("PORT") ?? "8000");
 const SECRET = Deno.env.get("COOKIE_SECRET") ?? "change-me-in-production-32chars!!";
 
-// Resolve project root (server/ is one level deep)
-const PROJECT_ROOT = new URL("..", import.meta.url).pathname;
+// Resolve project root (server/src/main.ts → ../../ = project root)
+const PROJECT_ROOT = new URL("../..", import.meta.url).pathname;
 
 // Static file map — paths relative to project root
 const STATIC_FILES: Record<string, { path: string; type: string }> = {
