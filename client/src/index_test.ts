@@ -500,3 +500,74 @@ Deno.test("stop() clears immediate heartbeat timer", async () => {
     cleanup();
   }
 });
+
+// ===== Ace Editor Adapter Integration Tests =====
+
+Deno.test("initialize with aceAdapterFactory creates adapter on start()", async () => {
+  let adapterAttached = false;
+  let adapterDetached = false;
+
+  const mockScript = createMockScript({
+    studentId: "John Doe",
+    examId: "exam-1",
+    serverUrl: "http://localhost:8000",
+  });
+
+  const mockAceFactory = () => ({
+    attach: () => {
+      adapterAttached = true;
+      return 1;
+    },
+    detach: () => {
+      adapterDetached = true;
+    },
+    attachedCount: () => (adapterAttached ? 1 : 0),
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = () =>
+    Promise.resolve(
+      new Response(JSON.stringify({ sessionId: "test" }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+  try {
+    const result = initialize(mockScript, undefined, mockAceFactory);
+    result.start();
+    await new Promise((r) => setTimeout(r, 50));
+
+    assertEquals(adapterAttached, true, "Adapter should be attached on start()");
+
+    result.stop();
+    assertEquals(adapterDetached, true, "Adapter should be detached on stop()");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("initialize without aceAdapterFactory does not crash", async () => {
+  const mockScript = createMockScript({
+    studentId: "John Doe",
+    examId: "exam-1",
+    serverUrl: "http://localhost:8000",
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = () =>
+    Promise.resolve(
+      new Response(JSON.stringify({ sessionId: "test" }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+  try {
+    const result = initialize(mockScript);
+    result.start();
+    await new Promise((r) => setTimeout(r, 50));
+    result.stop();
+    // Should not throw
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
