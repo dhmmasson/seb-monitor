@@ -336,6 +336,9 @@ export function initialize(
         document.addEventListener("input", handleInput);
       }
 
+      // Send initial heartbeat immediately to register the student
+      sendHeartbeat().catch(() => {});
+
       // Start heartbeat timer
       heartbeatTimer = setInterval(() => {
         sendHeartbeat();
