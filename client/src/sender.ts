@@ -18,8 +18,8 @@ export interface SenderOptions {
 
 /** Sender interface for sending data to the server */
 export interface Sender {
-  /** Send a heartbeat payload to the server */
-  sendHeartbeat(payload: HeartbeatPayload): Promise<void>;
+  /** Send a heartbeat payload to the server, returns parsed response with sessionId */
+  sendHeartbeat(payload: HeartbeatPayload): Promise<{ sessionId?: string }>;
   /** Send paste content to the server */
   sendPasteContent(request: PasteContentRequest): Promise<void>;
 }
@@ -49,7 +49,7 @@ export function createSender(
    * Send a request with retry logic and exponential backoff.
    * Retries up to maxRetries times on failure.
    */
-  async function sendWithRetry(url: string, body: unknown): Promise<void> {
+  async function sendWithRetry(url: string, body: unknown): Promise<unknown> {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -61,7 +61,7 @@ export function createSender(
         });
 
         if (response.ok) {
-          return;
+          return await response.json();
         }
 
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -79,9 +79,9 @@ export function createSender(
   }
 
   return {
-    /** Send heartbeat payload to /api/heartbeat endpoint */
-    async sendHeartbeat(payload: HeartbeatPayload): Promise<void> {
-      await sendWithRetry(`${baseUrl}/api/heartbeat`, payload);
+    /** Send heartbeat payload to /api/heartbeat endpoint, returns response with sessionId */
+    async sendHeartbeat(payload: HeartbeatPayload): Promise<{ sessionId?: string }> {
+      return (await sendWithRetry(`${baseUrl}/api/heartbeat`, payload)) as { sessionId?: string };
     },
 
     /** Send paste content to /api/paste endpoint */

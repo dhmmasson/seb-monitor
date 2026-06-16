@@ -12,6 +12,14 @@ let fetchCallCount = 0;
 let lastFetchUrl: string | null = null;
 let lastFetchOptions: RequestInit | null = null;
 
+// Create a mock JSON response
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 // Mock fetch function
 function mockFetch(
   url: string | URL | Request,
@@ -91,7 +99,7 @@ Deno.test("createSender returns sender object", () => {
 
 Deno.test("sendHeartbeat sends POST request to correct URL", async () => {
   resetMocks();
-  mockFetchResponse = new Response(null, { status: 200 });
+  mockFetchResponse = jsonResponse({ ok: true });
 
   const sender = createSender("http://localhost:8000", mockFetch);
   await sender.sendHeartbeat(sampleHeartbeat);
@@ -102,7 +110,7 @@ Deno.test("sendHeartbeat sends POST request to correct URL", async () => {
 
 Deno.test("sendHeartbeat sends JSON payload", async () => {
   resetMocks();
-  mockFetchResponse = new Response(null, { status: 200 });
+  mockFetchResponse = jsonResponse({ ok: true });
 
   const sender = createSender("http://localhost:8000", mockFetch);
   await sender.sendHeartbeat(sampleHeartbeat);
@@ -115,7 +123,7 @@ Deno.test("sendHeartbeat sends JSON payload", async () => {
 
 Deno.test("sendHeartbeat resolves on success", async () => {
   resetMocks();
-  mockFetchResponse = new Response(null, { status: 200 });
+  mockFetchResponse = jsonResponse({ ok: true });
 
   const sender = createSender("http://localhost:8000", mockFetch);
   await sender.sendHeartbeat(sampleHeartbeat);
@@ -145,7 +153,7 @@ Deno.test("sendHeartbeat retries on failure", async () => {
 
 Deno.test("sendPasteContent sends POST request to correct URL", async () => {
   resetMocks();
-  mockFetchResponse = new Response(null, { status: 200 });
+  mockFetchResponse = jsonResponse({ ok: true });
 
   const sender = createSender("http://localhost:8000", mockFetch);
   await sender.sendPasteContent(samplePasteRequest);
@@ -156,7 +164,7 @@ Deno.test("sendPasteContent sends POST request to correct URL", async () => {
 
 Deno.test("sendPasteContent sends JSON payload", async () => {
   resetMocks();
-  mockFetchResponse = new Response(null, { status: 200 });
+  mockFetchResponse = jsonResponse({ ok: true });
 
   const sender = createSender("http://localhost:8000", mockFetch);
   await sender.sendPasteContent(samplePasteRequest);
@@ -172,7 +180,7 @@ Deno.test("sendPasteContent sends JSON payload", async () => {
 
 Deno.test("sendPasteContent resolves on success", async () => {
   resetMocks();
-  mockFetchResponse = new Response(null, { status: 200 });
+  mockFetchResponse = jsonResponse({ ok: true });
 
   const sender = createSender("http://localhost:8000", mockFetch);
   await sender.sendPasteContent(samplePasteRequest);

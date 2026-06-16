@@ -137,6 +137,7 @@ export function initialize(
 
   // State
   const events: ExamEvent[] = [];
+  const pendingPastes: { hash: string; content: string; length: number; timestamp: number }[] = [];
   let copyCount = 0;
   let pasteCount = 0;
   let lastFocusTime = Date.now();
@@ -146,6 +147,7 @@ export function initialize(
   let lastInputWasPaste = false;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   let _started = false;
+  let sessionId = ""; // Set from first heartbeat response
 
   // Sender
   const sender = createSender(serverUrl);
@@ -246,15 +248,8 @@ export function initialize(
         matchedCopyHash: null,
       });
 
-      // Send paste content immediately
-      await sender.sendPasteContent({
-        hash,
-        content: pastedText,
-        length: pastedText.length,
-        sessionId: "", // Will be set by server
-        examId,
-        timestamp: Date.now(),
-      });
+      // Buffer paste content — will be sent after heartbeat establishes sessionId
+      pendingPastes.push({ hash, content: pastedText, length: pastedText.length, timestamp: Date.now() });
     }
   }
 
@@ -291,7 +286,22 @@ export function initialize(
     const payload = heartbeat.build();
 
     try {
-      await sender.sendHeartbeat(payload);
+      const result = await sender.sendHeartbeat(payload);
+      sessionId = result.sessionId ?? sessionId;
+
+      // Flush any buffered paste content now that we have a sessionId
+      for (const paste of pendingPastes) {
+        await sender.sendPasteContent({
+          hash: paste.hash,
+          content: paste.content,
+          length: paste.length,
+          sessionId,
+          examId,
+          timestamp: paste.timestamp,
+        });
+      }
+      pendingPastes.length = 0;
+
       // Reset after successful send
       resetAccumulators(focus, input, keys);
       events.length = 0;
