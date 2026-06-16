@@ -108,6 +108,7 @@ export function renderStudentDetail(
   db: DB,
   examId: string,
   sessionId: string,
+  basePath = "",
 ): string {
   const studentId = getStudentId(db, sessionId);
   const metrics = computeSessionMetrics(db, sessionId);
@@ -155,11 +156,11 @@ export function renderStudentDetail(
       ${chartHtml}
     </div>
     ${eventsHtml}
-    <p style="margin-top: 1rem;"><a href="/dashboard/${
+    <p style="margin-top: 1rem;"><a href="${basePath}/dashboard/${
     escapeHtml(encodeExamId(examId))
   }">← Back to exam overview</a></p>`;
 
-  return renderLayout(`${studentId} — SEB Monitor`, content);
+  return renderLayout(`${studentId} — SEB Monitor`, content, basePath);
 }
 
 function metricCard(value: string, label: string): string {

@@ -14,7 +14,7 @@ export function renderLoginPage(error?: string): string {
     <div class="card" style="max-width: 400px; margin: 4rem auto;">
       <h2 style="margin-bottom: 1rem;">🔐 Dashboard Login</h2>
       ${errorHtml}
-      <form method="POST" action="/auth/login">
+      <form method="POST" action="">
         <div style="margin-bottom: 1rem;">
           <label for="password" style="display: block; margin-bottom: 0.3rem; font-weight: 600;">Password</label>
           <input type="password" id="password" name="password" required

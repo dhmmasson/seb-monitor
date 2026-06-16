@@ -58,7 +58,7 @@ export function createDashboardHandler(
 
     // GET /dashboard — exam index showing all exams
     if (path === "/dashboard" || path === "/dashboard/") {
-      return html(renderExamIndex(db));
+      return html(renderExamIndex(db, basePath));
     }
 
     // GET /dashboard/:examId — exam overview
@@ -66,7 +66,7 @@ export function createDashboardHandler(
     if (examId && !path.includes("/student/")) {
       const decodedExamId = decodeExamId(examId);
       const students = computeExamSummary(db, decodedExamId);
-      return html(renderExamList(decodedExamId, students));
+      return html(renderExamList(decodedExamId, students, basePath));
     }
 
     // GET /dashboard/:examId/student/:sessionId — student detail
@@ -82,7 +82,7 @@ export function createDashboardHandler(
     );
     if (eId && sId) {
       const decodedEId = decodeExamId(eId);
-      return html(renderStudentDetail(db, decodedEId, sId));
+      return html(renderStudentDetail(db, decodedEId, sId, basePath));
     }
 
     return new Response("Not found", { status: 404 });

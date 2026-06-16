@@ -3,7 +3,7 @@
  * Server-side rendered, minimal embedded CSS.
  */
 
-export function renderLayout(title: string, content: string): string {
+export function renderLayout(title: string, content: string, basePath = ""): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -45,7 +45,7 @@ export function renderLayout(title: string, content: string): string {
 <body>
   <nav>
     <div class="container">
-      <a href="/dashboard">📊 SEB Monitor — Dashboard</a>
+      <a href="${basePath}/dashboard">📊 SEB Monitor — Dashboard</a>
     </div>
   </nav>
   <div class="container">

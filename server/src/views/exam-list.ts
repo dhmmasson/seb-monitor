@@ -10,9 +10,10 @@ import type { ExamSummaryEntry } from "../services/metrics.ts";
 export function renderExamList(
   examId: string,
   students: ExamSummaryEntry[],
+  basePath = "",
 ): string {
   const rows = students.length > 0
-    ? students.map((s) => renderStudentRow(examId, s)).join("")
+    ? students.map((s) => renderStudentRow(examId, s, basePath)).join("")
     : `<tr><td colspan="7" class="empty-state">No students found for this exam.</td></tr>`;
 
   const content = `
@@ -34,7 +35,7 @@ export function renderExamList(
       </tbody>
     </table>`;
 
-  return renderLayout(`Exam ${examId} — SEB Monitor`, content);
+  return renderLayout(`Exam ${examId} — SEB Monitor`, content, basePath);
 }
 
 /** Badge class based on value thresholds. */
@@ -46,13 +47,13 @@ function badgeClass(value: number, goodMax: number, warnMax: number): string {
     : "badge-bad";
 }
 
-function renderStudentRow(examId: string, student: ExamSummaryEntry): string {
+function renderStudentRow(examId: string, student: ExamSummaryEntry, basePath = ""): string {
   const focusPct = Math.round(student.focusRatio * 100);
   const pastePct = Math.round(student.pasteRatio * 100);
   const encodedExamId = encodeExamId(examId);
 
   return `<tr>
-    <td><a href="/dashboard/${escapeHtml(encodedExamId)}/student/${
+    <td><a href="${basePath}/dashboard/${escapeHtml(encodedExamId)}/student/${
     escapeHtml(student.sessionId)
   }">${escapeHtml(student.studentId)}</a></td>
     <td><span class="badge ${
