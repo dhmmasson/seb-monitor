@@ -28,6 +28,7 @@ import { createCollector } from "./collector.ts";
 import { createHeartbeatBuilder } from "./heartbeat.ts";
 import { createSender } from "./sender.ts";
 import {
+  createAceAdapter,
   type AceAdapter,
   type AceAdapterOptions,
 } from "./ace-adapter.ts";
@@ -458,7 +459,7 @@ export function initialize(
  */
 function autoStart(): void {
   try {
-    const result = initialize();
+    const result = initialize(undefined, undefined, createAceAdapter);
     result.start();
     // Expose for external access (demo, debugging)
     if (typeof globalThis !== "undefined") {
