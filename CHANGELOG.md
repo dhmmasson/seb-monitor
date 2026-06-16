@@ -1,3 +1,21 @@
+## v0.5.0 (2026-06-17)
+
+### Feat
+
+- implement immediate heartbeat scheduling on copy/paste events with debounce
+- **server**: add BASE_PATH env var for reverse proxy support
+- **docker**: implement Dockerfile, docker-compose.yml, and .dockerignore
+
+### Fix
+
+- **metrics**: update focusRatio default to 1 when no heartbeats exist
+- **server**: use basePath in all view hrefs and login form action
+- **docker**: update PORT configuration to 44513 in .env.example and docker-compose.yml
+
+### Refactor
+
+- remove getFocusRatio function and related tests; update collector module for event management
+
 ## v0.4.0 (2026-06-16)
 
 ### Feat
