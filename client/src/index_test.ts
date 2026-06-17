@@ -177,15 +177,35 @@ Deno.test("initialize throws when script cannot be found", () => {
   }
 });
 
-Deno.test("start begins heartbeat timer", async () => {
-  // Mock global fetch to avoid real network calls and retry timers
+// ===== Stop Behavior Tests =====
+
+Deno.test("stop prevents further heartbeat sends", async () => {
+  // Mock global fetch to count heartbeat calls
+  let fetchCalls = 0;
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = () =>
-    Promise.resolve(
+  globalThis.fetch = () => {
+    fetchCalls++;
+    return Promise.resolve(
       new Response(JSON.stringify({ sessionId: "test" }), {
         headers: { "Content-Type": "application/json" },
       }),
     );
+  };
+
+  // Mock setInterval to capture the timer
+  let intervalId: ReturnType<typeof setInterval> | null = null;
+  const originalSetInterval = globalThis.setInterval;
+  globalThis.setInterval = ((fn: () => void, ms: number) => {
+    intervalId = originalSetInterval(fn, ms);
+    return intervalId;
+  }) as typeof globalThis.setInterval;
+
+  const originalClearInterval = globalThis.clearInterval;
+  let clearIntervalCalled = false;
+  globalThis.clearInterval = ((id: ReturnType<typeof setInterval>) => {
+    clearIntervalCalled = true;
+    originalClearInterval(id);
+  }) as typeof globalThis.clearInterval;
 
   try {
     const script = createMockScript({
@@ -196,18 +216,29 @@ Deno.test("start begins heartbeat timer", async () => {
     });
 
     const result = initialize(script);
-    // start() should not throw, sends initial heartbeat
     result.start();
-    // Wait for initial heartbeat to complete
+    // Wait for initial heartbeat
     await new Promise((r) => setTimeout(r, 50));
-    // Clean up
+    const callsAfterStart = fetchCalls;
+
     result.stop();
+    assertEquals(clearIntervalCalled, true, "stop() should call clearInterval");
+
+    // Wait to verify no more heartbeats
+    await new Promise((r) => setTimeout(r, 150));
+    assertEquals(
+      fetchCalls,
+      callsAfterStart,
+      "no heartbeats should be sent after stop()",
+    );
   } finally {
     globalThis.fetch = originalFetch;
+    globalThis.setInterval = originalSetInterval;
+    globalThis.clearInterval = originalClearInterval;
   }
 });
 
-Deno.test("stop ends heartbeat timer", () => {
+Deno.test("stop() is idempotent — calling twice does not throw", () => {
   const script = createMockScript({
     studentId: "John Doe",
     moduleId: "CS101",
@@ -216,8 +247,8 @@ Deno.test("stop ends heartbeat timer", () => {
   });
 
   const result = initialize(script);
-  // stop() should not throw even if not started
   result.stop();
+  result.stop(); // Should not throw
 });
 
 // ===== resolveQuestionId Tests =====
@@ -455,8 +486,8 @@ Deno.test("rapid paste events are batched into single heartbeat", async () => {
     await new Promise((r) => setTimeout(r, 600));
     // Should only have 1 additional heartbeat (all 3 pastes batched)
     assertEquals(getHeartbeatCount(), countAfterStart + 1);
-    // All 3 pastes should have their content sent (flushed in the single heartbeat)
-    assertEquals(getPasteContentCount(), 3);
+    // Only 1 paste recorded — dedup suppresses the other 2 within 300ms window
+    assertEquals(getPasteContentCount(), 1);
 
     result.stop();
   } finally {
@@ -537,7 +568,11 @@ Deno.test("initialize with aceAdapterFactory creates adapter on start()", async 
     result.start();
     await new Promise((r) => setTimeout(r, 50));
 
-    assertEquals(adapterAttached, true, "Adapter should be attached on start()");
+    assertEquals(
+      adapterAttached,
+      true,
+      "Adapter should be attached on start()",
+    );
 
     result.stop();
     assertEquals(adapterDetached, true, "Adapter should be detached on stop()");
@@ -585,8 +620,12 @@ Deno.test("initialize with pasteDetectorFactory creates detector on start()", as
   });
 
   const mockPasteDetectorFactory = () => ({
-    start: () => { detectorAttached = true; },
-    stop: () => { detectorDetached = true; },
+    start: () => {
+      detectorAttached = true;
+    },
+    stop: () => {
+      detectorDetached = true;
+    },
     handleBeforeInput: () => {},
   });
 
@@ -608,10 +647,18 @@ Deno.test("initialize with pasteDetectorFactory creates detector on start()", as
     result.start();
     await new Promise((r) => setTimeout(r, 50));
 
-    assertEquals(detectorAttached, true, "Paste detector should be attached on start()");
+    assertEquals(
+      detectorAttached,
+      true,
+      "Paste detector should be attached on start()",
+    );
 
     result.stop();
-    assertEquals(detectorDetached, true, "Paste detector should be detached on stop()");
+    assertEquals(
+      detectorDetached,
+      true,
+      "Paste detector should be detached on stop()",
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -629,7 +676,9 @@ Deno.test("paste detector beforeinput callback triggers paste detection", async 
     serverUrl: "http://localhost:8000",
   });
 
-  const mockPasteDetectorFactory = (opts: { onPaste: (text: string) => void }) => {
+  const mockPasteDetectorFactory = (
+    opts: { onPaste: (text: string) => void },
+  ) => {
     capturedOnPaste = opts.onPaste;
     return {
       start: () => {},

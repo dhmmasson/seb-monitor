@@ -105,15 +105,6 @@ Deno.test("clearEvents resets copy and paste counts", () => {
   assertEquals(collector.getPasteCount(), 0);
 });
 
-// ===== Start/Stop Tests =====
-
-Deno.test("start and stop toggle collector state", () => {
-  const collector = createCollector();
-  // These should not throw
-  collector.start();
-  collector.stop();
-});
-
 // ===== Integration Test =====
 
 Deno.test("collector records events and counts together", () => {

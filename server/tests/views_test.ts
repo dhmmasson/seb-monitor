@@ -167,3 +167,55 @@ Deno.test("renderExamList: handles empty student list", () => {
     "should show empty state message",
   );
 });
+
+// ===== XSS Escaping Tests =====
+
+Deno.test("renderExamList: escapes HTML in student names to prevent XSS", () => {
+  const students: ExamSummaryEntry[] = [
+    {
+      sessionId: "s1",
+      studentId: '<script>alert("xss")</script>',
+      focusRatio: 0.9,
+      pasteRatio: 0.0,
+      totalCopyCount: 0,
+      totalPasteCount: 0,
+      unmatchedPasteCount: 0,
+      largestPasteLength: 0,
+      largestPasteHash: "",
+    },
+  ];
+  const html = renderExamList("exam-1", students);
+  assertEquals(
+    html.includes("<script>"),
+    false,
+    "raw <script> tag must not appear in output",
+  );
+  assertEquals(
+    html.includes("&lt;script&gt;"),
+    true,
+    "HTML entities should be escaped",
+  );
+});
+
+Deno.test("renderExamList: escapes HTML in exam ID heading", () => {
+  const students: ExamSummaryEntry[] = [
+    {
+      sessionId: "s1",
+      studentId: "Alice",
+      focusRatio: 0.9,
+      pasteRatio: 0.0,
+      totalCopyCount: 0,
+      totalPasteCount: 0,
+      unmatchedPasteCount: 0,
+      largestPasteLength: 0,
+      largestPasteHash: "",
+    },
+  ];
+  const html = renderExamList("<img src=x onerror=alert(1)>", students);
+  // The h1 heading uses escapeHtml(examId)
+  assertEquals(
+    html.includes("📋 Exam: &lt;img"),
+    true,
+    "h1 heading should escape HTML in exam ID",
+  );
+});

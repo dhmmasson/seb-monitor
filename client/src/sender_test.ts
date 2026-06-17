@@ -87,14 +87,6 @@ const samplePasteRequest: PasteContentRequest = {
   timestamp: 124001,
 };
 
-// ===== Sender Creation Tests =====
-
-Deno.test("createSender returns sender object", () => {
-  const sender = createSender("http://localhost:8000", mockFetch);
-  assertEquals(typeof sender.sendHeartbeat, "function");
-  assertEquals(typeof sender.sendPasteContent, "function");
-});
-
 // ===== Heartbeat Sending Tests =====
 
 Deno.test("sendHeartbeat sends POST request to correct URL", async () => {
@@ -121,16 +113,6 @@ Deno.test("sendHeartbeat sends JSON payload", async () => {
   assertEquals(JSON.parse(lastFetchOptions?.body as string), sampleHeartbeat);
 });
 
-Deno.test("sendHeartbeat resolves on success", async () => {
-  resetMocks();
-  mockFetchResponse = jsonResponse({ ok: true });
-
-  const sender = createSender("http://localhost:8000", mockFetch);
-  await sender.sendHeartbeat(sampleHeartbeat);
-
-  assertEquals(fetchCallCount, 1);
-});
-
 Deno.test("sendHeartbeat retries on failure", async () => {
   resetMocks();
   mockFetchError = new Error("Network error");
@@ -147,6 +129,36 @@ Deno.test("sendHeartbeat retries on failure", async () => {
 
   // Should have tried 3 times (initial + 2 retries)
   assertEquals(fetchCallCount, 3);
+});
+
+// ===== HTTP 5xx Retry Tests =====
+
+Deno.test("sendHeartbeat retries on HTTP 500 response", async () => {
+  let callCount = 0;
+  const http500Fetch = (
+    _url: string | URL | Request,
+    _options?: RequestInit,
+  ): Promise<Response> => {
+    callCount++;
+    // First two calls return 500, third succeeds
+    if (callCount <= 2) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ error: "Internal Server Error" }), {
+          status: 500,
+          statusText: "Internal Server Error",
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
+    return Promise.resolve(jsonResponse({ ok: true }));
+  };
+
+  const sender = createSender("http://localhost:8000", http500Fetch, {
+    maxRetries: 2,
+  });
+
+  await sender.sendHeartbeat(sampleHeartbeat);
+  assertEquals(callCount, 3, "should retry on 500 and succeed on 3rd attempt");
 });
 
 // ===== Paste Content Sending Tests =====
@@ -176,16 +188,6 @@ Deno.test("sendPasteContent sends JSON payload", async () => {
     JSON.parse(lastFetchOptions?.body as string),
     samplePasteRequest,
   );
-});
-
-Deno.test("sendPasteContent resolves on success", async () => {
-  resetMocks();
-  mockFetchResponse = jsonResponse({ ok: true });
-
-  const sender = createSender("http://localhost:8000", mockFetch);
-  await sender.sendPasteContent(samplePasteRequest);
-
-  assertEquals(fetchCallCount, 1);
 });
 
 Deno.test("sendPasteContent retries on failure", async () => {

@@ -390,3 +390,81 @@ Deno.test("adapter handles empty paste event gracefully", () => {
   mockEditor.emit("paste", { text: "" });
   assertEquals(pasteCalled, false);
 });
+
+// ===== Paste Deduplication Tests =====
+
+Deno.test("adapter skips paste when lastPasteDetectedAt is recent", () => {
+  const mockEditor = createMockAceEditor();
+  const mockContainer = createMockAceContainer(mockEditor);
+  let pasteCount = 0;
+  const ts = { value: Date.now() };
+
+  const mockDoc = {
+    querySelectorAll: (selector: string) => {
+      if (selector === ".ace_editor") return [mockContainer];
+      return [];
+    },
+  };
+
+  const adapter = createAceAdapter({
+    onPaste: () => { pasteCount++; },
+    onChange: () => {},
+    lastPasteDetectedAt: ts,
+  }, mockDoc as unknown as Document);
+
+  adapter.attach();
+
+  mockEditor.emit("paste", { text: "pasted" });
+  // Skipped because ts was just set
+  assertEquals(pasteCount, 0);
+});
+
+Deno.test("adapter fires paste when lastPasteDetectedAt is stale", () => {
+  const mockEditor = createMockAceEditor();
+  const mockContainer = createMockAceContainer(mockEditor);
+  let pasteCount = 0;
+  const ts = { value: Date.now() - 301 };
+
+  const mockDoc = {
+    querySelectorAll: (selector: string) => {
+      if (selector === ".ace_editor") return [mockContainer];
+      return [];
+    },
+  };
+
+  const adapter = createAceAdapter({
+    onPaste: () => { pasteCount++; },
+    onChange: () => {},
+    lastPasteDetectedAt: ts,
+  }, mockDoc as unknown as Document);
+
+  adapter.attach();
+
+  mockEditor.emit("paste", { text: "pasted" });
+  assertEquals(pasteCount, 1);
+});
+
+Deno.test("adapter updates lastPasteDetectedAt after recording paste", () => {
+  const mockEditor = createMockAceEditor();
+  const mockContainer = createMockAceContainer(mockEditor);
+  const ts = { value: 0 };
+
+  const mockDoc = {
+    querySelectorAll: (selector: string) => {
+      if (selector === ".ace_editor") return [mockContainer];
+      return [];
+    },
+  };
+
+  const adapter = createAceAdapter({
+    onPaste: () => {},
+    onChange: () => {},
+    lastPasteDetectedAt: ts,
+  }, mockDoc as unknown as Document);
+
+  adapter.attach();
+
+  mockEditor.emit("paste", { text: "pasted" });
+  assertEquals(ts.value > 0, true);
+  assertEquals(Date.now() - ts.value < 100, true);
+});

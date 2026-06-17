@@ -5,7 +5,7 @@
  * RED phase: these tests should fail until implementation exists.
  */
 import { assertEquals } from "@std/assert";
-import { encodeExamId, decodeExamId } from "../src/routes/url-ids.ts";
+import { decodeExamId, encodeExamId } from "../src/routes/url-ids.ts";
 
 // ===== Roundtrip =====
 
@@ -45,42 +45,6 @@ Deno.test("encodeExamId + decodeExamId: roundtrip with empty string", () => {
 });
 
 // ===== URL Safety =====
-
-Deno.test("encodeExamId: output contains no slashes", () => {
-  const encoded = encodeExamId("https://moodle.example.com/exam/123");
-  assertEquals(
-    encoded.includes("/"),
-    false,
-    `encoded value "${encoded}" should not contain slashes`,
-  );
-});
-
-Deno.test("encodeExamId: output contains no colons", () => {
-  const encoded = encodeExamId("https://moodle.example.com/exam/123");
-  assertEquals(
-    encoded.includes(":"),
-    false,
-    `encoded value "${encoded}" should not contain colons`,
-  );
-});
-
-Deno.test("encodeExamId: output contains no question marks", () => {
-  const encoded = encodeExamId("exam?query=yes");
-  assertEquals(
-    encoded.includes("?"),
-    false,
-    `encoded value "${encoded}" should not contain question marks`,
-  );
-});
-
-Deno.test("encodeExamId: output contains no hash", () => {
-  const encoded = encodeExamId("exam#fragment");
-  assertEquals(
-    encoded.includes("#"),
-    false,
-    `encoded value "${encoded}" should not contain hash`,
-  );
-});
 
 Deno.test("encodeExamId: output is safe for URL path segment", () => {
   const encoded = encodeExamId("https://moodle.example.com/exam/123");

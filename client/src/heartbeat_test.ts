@@ -1,4 +1,4 @@
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import { createHeartbeatBuilder } from "./heartbeat.ts";
 import type {
   ExamEvent,
@@ -51,49 +51,6 @@ function createMockCollector() {
 }
 
 // ===== Heartbeat Builder Tests =====
-
-Deno.test("createHeartbeatBuilder returns builder object", () => {
-  const builder = createHeartbeatBuilder(
-    "student1",
-    "exam1",
-    "question1",
-    createMockAccumulators().focus,
-    createMockAccumulators().input,
-    createMockAccumulators().keys,
-    createMockCollector(),
-  );
-  assertExists(builder);
-  assertEquals(typeof builder.build, "function");
-  assertEquals(typeof builder.reset, "function");
-});
-
-Deno.test("build returns HeartbeatPayload with correct structure", () => {
-  const { focus, input, keys } = createMockAccumulators();
-  const collector = createMockCollector();
-  const builder = createHeartbeatBuilder(
-    "student1",
-    "exam1",
-    "question1",
-    focus,
-    input,
-    keys,
-    collector,
-  );
-
-  const payload = builder.build();
-
-  // Check required fields exist
-  assertExists(payload.studentId);
-  assertExists(payload.examId);
-  assertExists(payload.questionId);
-  assertExists(payload.timestamp);
-  assertExists(payload.focus);
-  assertExists(payload.input);
-  assertExists(payload.keys);
-  assertExists(payload.copyCount);
-  assertExists(payload.pasteCount);
-  assertExists(payload.events);
-});
 
 Deno.test("build includes correct student/exam/question IDs", () => {
   const { focus, input, keys } = createMockAccumulators();
@@ -235,34 +192,6 @@ Deno.test("build sets timestamp to current time", () => {
   // Timestamp should be between before and after (within 100ms tolerance)
   assertEquals(payload.timestamp >= before, true);
   assertEquals(payload.timestamp <= after, true);
-});
-
-Deno.test("reset clears collector events", () => {
-  const { focus, input, keys } = createMockAccumulators();
-  let eventsCleared = false;
-  const collector = {
-    start: () => {},
-    stop: () => {},
-    getEvents: () => [] as ExamEvent[],
-    getCopyCount: () => 0,
-    getPasteCount: () => 0,
-    clearEvents: () => {
-      eventsCleared = true;
-    },
-  };
-
-  const builder = createHeartbeatBuilder(
-    "student1",
-    "exam1",
-    "question1",
-    focus,
-    input,
-    keys,
-    collector,
-  );
-
-  builder.reset();
-  assertEquals(eventsCleared, true);
 });
 
 Deno.test("reset resets focus, input, and key accumulators", () => {

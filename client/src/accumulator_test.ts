@@ -100,6 +100,63 @@ Deno.test("recordKey with shiftKey increments shiftCount", () => {
 
 // ===== Reset Tests =====
 
+// ===== Focus Time Accumulation Tests =====
+
+Deno.test("focus time: accumulating focused time across intervals", () => {
+  const focus = createFocusAccumulator();
+  // Simulate first interval: 5 seconds focused
+  focus.focusedTimeMs += 5000;
+  assertEquals(focus.focusedTimeMs, 5000);
+  assertEquals(focus.unfocusedTimeMs, 0);
+
+  // Simulate second interval: 3 more seconds focused
+  focus.focusedTimeMs += 3000;
+  assertEquals(focus.focusedTimeMs, 8000);
+  assertEquals(focus.unfocusedTimeMs, 0);
+  assertEquals(focus.blurCount, 0);
+});
+
+Deno.test("focus time: switching to unfocused accumulates unfocused time", () => {
+  const focus = createFocusAccumulator();
+  // 5 seconds focused
+  focus.focusedTimeMs += 5000;
+  // Switch to unfocused for 2 seconds
+  focus.unfocusedTimeMs += 2000;
+  focus.blurCount++;
+  assertEquals(focus.focusedTimeMs, 5000);
+  assertEquals(focus.unfocusedTimeMs, 2000);
+  assertEquals(focus.blurCount, 1);
+});
+
+Deno.test("focus time: focus ratio calculation matches vision spec", () => {
+  const focus = createFocusAccumulator();
+  focus.focusedTimeMs = 58000;
+  focus.unfocusedTimeMs = 2000;
+  // Vision: focusRatio = focusedTimeMs / (focusedTimeMs + unfocusedTimeMs)
+  const ratio = focus.focusedTimeMs /
+    (focus.focusedTimeMs + focus.unfocusedTimeMs);
+  assertEquals(Math.round(ratio * 1000), 967, "96.7% focused");
+});
+
+Deno.test("focus time: multiple focus/blur cycles accumulate correctly", () => {
+  const focus = createFocusAccumulator();
+  // Cycle 1: 10s focused, 2s unfocused
+  focus.focusedTimeMs += 10000;
+  focus.unfocusedTimeMs += 2000;
+  focus.blurCount++;
+  // Cycle 2: 5s focused, 1s unfocused
+  focus.focusedTimeMs += 5000;
+  focus.unfocusedTimeMs += 1000;
+  focus.blurCount++;
+  assertEquals(focus.focusedTimeMs, 15000);
+  assertEquals(focus.unfocusedTimeMs, 3000);
+  assertEquals(focus.blurCount, 2);
+  // Total: 18s, ratio = 15/18 = 0.833
+  const ratio = focus.focusedTimeMs /
+    (focus.focusedTimeMs + focus.unfocusedTimeMs);
+  assertEquals(Math.round(ratio * 1000), 833, "83.3% focused");
+});
+
 Deno.test("resetAccumulators zeros all counters", () => {
   const focus: FocusAccumulator = {
     focusedTimeMs: 50000,

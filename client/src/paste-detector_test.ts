@@ -3,6 +3,8 @@ import {
   createPasteDetector,
   extractPastedText,
   type AnswerField,
+  type PasteTimestamp,
+  PASTE_DEDUP_WINDOW_MS,
 } from "./paste-detector.ts";
 
 /**
@@ -329,4 +331,130 @@ Deno.test("ignores content changes in non-answer fields", () => {
   detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
 
   assertEquals(pasteDetected, false);
+});
+
+// ===== Paste Deduplication Tests =====
+
+Deno.test("keyboard layer skips paste when lastPasteDetectedAt is recent", () => {
+  let pasteCount = 0;
+  const ts: PasteTimestamp = { value: Date.now() };
+  let fields: AnswerField[] = [
+    { value: "before ", getAttribute: () => null },
+  ];
+  const detector = createPasteDetector({
+    onPaste: () => { pasteCount++; },
+    answerFieldsFn: () => fields,
+    lastPasteDetectedAt: ts,
+  });
+
+  detector.snapshotAnswerFields();
+  fields = [{ value: "before pasted", getAttribute: () => null }];
+  detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
+
+  // Skipped because ts was just set
+  assertEquals(pasteCount, 0);
+});
+
+Deno.test("keyboard layer fires paste when lastPasteDetectedAt is stale", () => {
+  let pasteCount = 0;
+  const ts: PasteTimestamp = { value: Date.now() - PASTE_DEDUP_WINDOW_MS - 1 };
+  let fields: AnswerField[] = [
+    { value: "before ", getAttribute: () => null },
+  ];
+  const detector = createPasteDetector({
+    onPaste: () => { pasteCount++; },
+    answerFieldsFn: () => fields,
+    lastPasteDetectedAt: ts,
+  });
+
+  detector.snapshotAnswerFields();
+  fields = [{ value: "before pasted", getAttribute: () => null }];
+  detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
+
+  // Fired because ts was stale
+  assertEquals(pasteCount, 1);
+});
+
+Deno.test("beforeinput layer skips paste when lastPasteDetectedAt is recent", () => {
+  let pasteCount = 0;
+  const ts: PasteTimestamp = { value: Date.now() };
+  const detector = createPasteDetector({
+    onPaste: () => { pasteCount++; },
+    lastPasteDetectedAt: ts,
+  });
+
+  detector.handleBeforeInput(mockBeforeInput("insertFromPaste", "pasted text"));
+
+  // Skipped because ts was just set
+  assertEquals(pasteCount, 0);
+});
+
+Deno.test("beforeinput layer fires paste when lastPasteDetectedAt is stale", () => {
+  let pasteCount = 0;
+  const ts: PasteTimestamp = { value: Date.now() - PASTE_DEDUP_WINDOW_MS - 1 };
+  const detector = createPasteDetector({
+    onPaste: () => { pasteCount++; },
+    lastPasteDetectedAt: ts,
+  });
+
+  detector.handleBeforeInput(mockBeforeInput("insertFromPaste", "pasted text"));
+
+  // Fired because ts was stale
+  assertEquals(pasteCount, 1);
+});
+
+Deno.test("keyboard layer updates lastPasteDetectedAt after recording paste", () => {
+  const ts: PasteTimestamp = { value: 0 };
+  let fields: AnswerField[] = [
+    { value: "before ", getAttribute: () => null },
+  ];
+  const detector = createPasteDetector({
+    onPaste: () => {},
+    answerFieldsFn: () => fields,
+    lastPasteDetectedAt: ts,
+  });
+
+  detector.snapshotAnswerFields();
+  fields = [{ value: "before pasted", getAttribute: () => null }];
+  detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
+
+  // Timestamp should have been updated to a recent value
+  assertEquals(ts.value > 0, true);
+  assertEquals(Date.now() - ts.value < 100, true);
+});
+
+Deno.test("beforeinput layer updates lastPasteDetectedAt after recording paste", () => {
+  const ts: PasteTimestamp = { value: 0 };
+  const detector = createPasteDetector({
+    onPaste: () => {},
+    lastPasteDetectedAt: ts,
+  });
+
+  detector.handleBeforeInput(mockBeforeInput("insertFromPaste", "text"));
+
+  assertEquals(ts.value > 0, true);
+  assertEquals(Date.now() - ts.value < 100, true);
+});
+
+Deno.test("layers dedup each other with shared timestamp", () => {
+  let pasteCount = 0;
+  const ts: PasteTimestamp = { value: 0 };
+  let fields: AnswerField[] = [
+    { value: "", getAttribute: () => null },
+  ];
+  const detector = createPasteDetector({
+    onPaste: () => { pasteCount++; },
+    answerFieldsFn: () => fields,
+    lastPasteDetectedAt: ts,
+  });
+
+  // Layer 1 fires first (keyboard)
+  detector.snapshotAnswerFields();
+  fields = [{ value: "pasted", getAttribute: () => null }];
+  detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
+  assertEquals(pasteCount, 1);
+
+  // Layer 2 fires immediately after (beforeinput) — should be deduped
+  detector.handleBeforeInput(mockBeforeInput("insertFromPaste", "pasted"));
+  assertEquals(pasteCount, 1);
 });

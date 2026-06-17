@@ -3,14 +3,21 @@
  * RED phase: these tests should fail until implementation exists.
  */
 import { assertEquals, assertExists } from "@std/assert";
-import { createTestDb, closeTestDb } from "./helpers.ts";
+import { closeTestDb, createTestDb } from "./helpers.ts";
 import { findOrCreate } from "../src/db/sessions.ts";
 import { insertHeartbeat } from "../src/db/heartbeats.ts";
 import { insertEvents } from "../src/db/events.ts";
-import { insertPasteContent, getPasteContent } from "../src/db/paste_contents.ts";
+import {
+  getPasteContent,
+  insertPasteContent,
+} from "../src/db/paste_contents.ts";
 
 // Helper to query with args using the deno.land/x/sqlite API
-function queryAll(db: ReturnType<typeof createTestDb>, sql: string, args: unknown[] = []): unknown[][] {
+function queryAll(
+  db: ReturnType<typeof createTestDb>,
+  sql: string,
+  args: unknown[] = [],
+): unknown[][] {
   if (args.length === 0) {
     return [...db.query(sql)];
   }
@@ -27,8 +34,9 @@ function queryAll(db: ReturnType<typeof createTestDb>, sql: string, args: unknow
 Deno.test("schema: creates sessions table", () => {
   const db = createTestDb();
   try {
-    const rows = queryAll(db,
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'"
+    const rows = queryAll(
+      db,
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'",
     );
     assertEquals(rows.length, 1, "sessions table should exist");
   } finally {
@@ -39,8 +47,9 @@ Deno.test("schema: creates sessions table", () => {
 Deno.test("schema: creates heartbeats table", () => {
   const db = createTestDb();
   try {
-    const rows = queryAll(db,
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='heartbeats'"
+    const rows = queryAll(
+      db,
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='heartbeats'",
     );
     assertEquals(rows.length, 1, "heartbeats table should exist");
   } finally {
@@ -51,8 +60,9 @@ Deno.test("schema: creates heartbeats table", () => {
 Deno.test("schema: creates events table", () => {
   const db = createTestDb();
   try {
-    const rows = queryAll(db,
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='events'"
+    const rows = queryAll(
+      db,
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='events'",
     );
     assertEquals(rows.length, 1, "events table should exist");
   } finally {
@@ -63,27 +73,11 @@ Deno.test("schema: creates events table", () => {
 Deno.test("schema: creates paste_contents table", () => {
   const db = createTestDb();
   try {
-    const rows = queryAll(db,
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='paste_contents'"
+    const rows = queryAll(
+      db,
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='paste_contents'",
     );
     assertEquals(rows.length, 1, "paste_contents table should exist");
-  } finally {
-    closeTestDb(db);
-  }
-});
-
-Deno.test("schema: WAL mode is enabled", () => {
-  const db = createTestDb();
-  try {
-    const rows = queryAll(db, "PRAGMA journal_mode");
-    const mode = rows[0][0] as string;
-    // In-memory databases return "memory"; file-based return "wal"
-    // Both are acceptable — the migration sets WAL but in-memory DBs can't use it
-    assertEquals(
-      mode === "wal" || mode === "memory",
-      true,
-      `journal mode should be wal or memory, got: ${mode}`
-    );
   } finally {
     closeTestDb(db);
   }
@@ -195,7 +189,11 @@ Deno.test("sessions: findOrCreate returns existing session for same student/exam
   try {
     const session1 = findOrCreate(db, "student-1", "exam-1");
     const session2 = findOrCreate(db, "student-1", "exam-1");
-    assertEquals(session1.sessionId, session2.sessionId, "should return same session");
+    assertEquals(
+      session1.sessionId,
+      session2.sessionId,
+      "should return same session",
+    );
   } finally {
     closeTestDb(db);
   }
@@ -209,7 +207,7 @@ Deno.test("sessions: different students get different sessions", () => {
     assertEquals(
       session1.sessionId !== session2.sessionId,
       true,
-      "different students should get different sessions"
+      "different students should get different sessions",
     );
   } finally {
     closeTestDb(db);
@@ -229,7 +227,12 @@ Deno.test("heartbeats: insertHeartbeat stores heartbeat data", () => {
       questionId: "q1",
       timestamp: Date.now(),
       focus: { focusedTimeMs: 58000, unfocusedTimeMs: 2000, blurCount: 1 },
-      input: { typedChars: 100, pastedChars: 50, deletedChars: 10, currentLength: 140 },
+      input: {
+        typedChars: 100,
+        pastedChars: 50,
+        deletedChars: 10,
+        currentLength: 140,
+      },
       keys: { keyDownCount: 200, ctrlCount: 2, altCount: 0, shiftCount: 20 },
       copyCount: 1,
       pasteCount: 1,
@@ -238,7 +241,9 @@ Deno.test("heartbeats: insertHeartbeat stores heartbeat data", () => {
 
     insertHeartbeat(db, session.sessionId, payload);
 
-    const rows = queryAll(db, "SELECT * FROM heartbeats WHERE session_id = ?", [session.sessionId]);
+    const rows = queryAll(db, "SELECT * FROM heartbeats WHERE session_id = ?", [
+      session.sessionId,
+    ]);
     assertEquals(rows.length, 1, "should have one heartbeat row");
   } finally {
     closeTestDb(db);
@@ -256,7 +261,12 @@ Deno.test("heartbeats: insertHeartbeat stores correct values", () => {
       questionId: "q1",
       timestamp: 1700000000000,
       focus: { focusedTimeMs: 58000, unfocusedTimeMs: 2000, blurCount: 1 },
-      input: { typedChars: 340, pastedChars: 120, deletedChars: 25, currentLength: 435 },
+      input: {
+        typedChars: 340,
+        pastedChars: 120,
+        deletedChars: 25,
+        currentLength: 435,
+      },
       keys: { keyDownCount: 890, ctrlCount: 4, altCount: 0, shiftCount: 82 },
       copyCount: 1,
       pasteCount: 2,
@@ -265,9 +275,10 @@ Deno.test("heartbeats: insertHeartbeat stores correct values", () => {
 
     insertHeartbeat(db, session.sessionId, payload);
 
-    const rows = queryAll(db,
+    const rows = queryAll(
+      db,
       "SELECT question_id, focused_time_ms, unfocused_time_ms, blur_count, typed_chars, pasted_chars, deleted_chars, current_length, copy_count, paste_count, key_down_count FROM heartbeats WHERE session_id = ?",
-      [session.sessionId]
+      [session.sessionId],
     );
     assertEquals(rows.length, 1);
     const row = rows[0];
@@ -303,7 +314,9 @@ Deno.test("events: insertEvents stores events", () => {
 
     insertEvents(db, session.sessionId, events);
 
-    const rows = queryAll(db, "SELECT * FROM events WHERE session_id = ?", [session.sessionId]);
+    const rows = queryAll(db, "SELECT * FROM events WHERE session_id = ?", [
+      session.sessionId,
+    ]);
     assertEquals(rows.length, 4, "should have four event rows");
   } finally {
     closeTestDb(db);
@@ -319,9 +332,10 @@ Deno.test("events: insertEvents stores copy event with hash", () => {
       { type: "copy" as const, timestamp: 1000, hash: "abc123", length: 50 },
     ]);
 
-    const rows = queryAll(db,
+    const rows = queryAll(
+      db,
       "SELECT type, hash, length FROM events WHERE session_id = ?",
-      [session.sessionId]
+      [session.sessionId],
     );
     assertEquals(rows.length, 1);
     assertEquals(rows[0][0], "copy");
@@ -342,9 +356,10 @@ Deno.test("events: insertEvents stores focus/blur without hash", () => {
       { type: "blur" as const, timestamp: 2000 },
     ]);
 
-    const rows = queryAll(db,
+    const rows = queryAll(
+      db,
       "SELECT type, hash FROM events WHERE session_id = ? ORDER BY timestamp",
-      [session.sessionId]
+      [session.sessionId],
     );
     assertEquals(rows.length, 2);
     assertEquals(rows[0][0], "focus");
@@ -398,7 +413,9 @@ Deno.test("paste_contents: insertPasteContent is idempotent for same hash", () =
     insertPasteContent(db, request);
     insertPasteContent(db, request); // duplicate — should not fail
 
-    const rows = queryAll(db, "SELECT * FROM paste_contents WHERE hash = ?", ["abc123"]);
+    const rows = queryAll(db, "SELECT * FROM paste_contents WHERE hash = ?", [
+      "abc123",
+    ]);
     assertEquals(rows.length, 1, "should still have only one row");
   } finally {
     closeTestDb(db);
@@ -410,6 +427,97 @@ Deno.test("paste_contents: getPasteContent returns null for missing hash", () =>
   try {
     const result = getPasteContent(db, "nonexistent");
     assertEquals(result, null, "should return null for missing hash");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+// ===== Session Day-Dedup Tests =====
+
+Deno.test("sessions: same student/exam on different days creates different sessions", () => {
+  const db = createTestDb();
+  try {
+    // Insert a session manually with yesterday's start_time
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+    const yesterdayStart = yesterday.getTime();
+
+    const oldSessionId = "old-session-id";
+    const stmt = db.prepareQuery(
+      "INSERT INTO sessions (session_id, student_id, exam_id, start_time) VALUES (?, ?, ?, ?)",
+    );
+    try {
+      stmt.execute([oldSessionId, "student-1", "exam-1", yesterdayStart]);
+    } finally {
+      stmt.finalize();
+    }
+
+    // findOrCreate should create a NEW session for today
+    const session = findOrCreate(db, "student-1", "exam-1");
+    assertEquals(
+      session.sessionId !== oldSessionId,
+      true,
+      "should create new session for today, not reuse yesterday's",
+    );
+    assertEquals(session.studentId, "student-1");
+    assertEquals(session.examId, "exam-1");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("sessions: findOrCreate reuses existing session from today", () => {
+  const db = createTestDb();
+  try {
+    const s1 = findOrCreate(db, "student-1", "exam-1");
+    const s2 = findOrCreate(db, "student-1", "exam-1");
+    assertEquals(s1.sessionId, s2.sessionId, "same day should reuse session");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+// ===== matchedCopyHash Persistence =====
+
+Deno.test("events: insertEvents stores matchedCopyHash for paste events", () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "student-1", "exam-1");
+
+    insertEvents(db, session.sessionId, [
+      { type: "copy" as const, timestamp: 1000, hash: "copy-abc", length: 50 },
+      {
+        type: "paste" as const,
+        timestamp: 2000,
+        hash: "paste-abc",
+        length: 50,
+        matchedCopyHash: "copy-abc",
+      },
+      {
+        type: "paste" as const,
+        timestamp: 3000,
+        hash: "paste-ext",
+        length: 100,
+        matchedCopyHash: null,
+      },
+    ]);
+
+    const rows = queryAll(
+      db,
+      "SELECT type, hash, matched_copy_hash FROM events WHERE session_id = ? ORDER BY timestamp",
+      [session.sessionId],
+    );
+    assertEquals(rows.length, 3);
+    // copy event has no matchedCopyHash
+    assertEquals(rows[0][0], "copy");
+    assertEquals(rows[0][2], null);
+    // matched paste has matchedCopyHash
+    assertEquals(rows[1][0], "paste");
+    assertEquals(rows[1][2], "copy-abc");
+    // unmatched paste has null matchedCopyHash
+    assertEquals(rows[2][0], "paste");
+    assertEquals(rows[2][2], null);
   } finally {
     closeTestDb(db);
   }

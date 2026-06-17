@@ -4,7 +4,7 @@
  */
 import { assertEquals, assertExists } from "@std/assert";
 import { createHandler } from "../src/routes/api.ts";
-import { createTestDb, closeTestDb } from "./helpers.ts";
+import { closeTestDb, createTestDb } from "./helpers.ts";
 
 function makeHeartbeatPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -13,7 +13,12 @@ function makeHeartbeatPayload(overrides: Record<string, unknown> = {}) {
     questionId: "q1",
     timestamp: Date.now(),
     focus: { focusedTimeMs: 58000, unfocusedTimeMs: 2000, blurCount: 1 },
-    input: { typedChars: 100, pastedChars: 50, deletedChars: 10, currentLength: 140 },
+    input: {
+      typedChars: 100,
+      pastedChars: 50,
+      deletedChars: 10,
+      currentLength: 140,
+    },
     keys: { keyDownCount: 200, ctrlCount: 2, altCount: 0, shiftCount: 20 },
     copyCount: 1,
     pasteCount: 1,
@@ -62,7 +67,9 @@ Deno.test("POST /api/heartbeat: stores heartbeat in database", async () => {
     const body = await resp.json();
 
     // Verify heartbeat was stored using prepareQuery
-    const stmt = db.prepareQuery("SELECT * FROM heartbeats WHERE session_id = ?");
+    const stmt = db.prepareQuery(
+      "SELECT * FROM heartbeats WHERE session_id = ?",
+    );
     try {
       const rows = [...stmt.all([body.sessionId])];
       assertEquals(rows.length, 1, "heartbeat should be stored");
@@ -236,6 +243,97 @@ Deno.test("GET /api/paste/:hash: returns 404 for missing hash", async () => {
     const app = createHandler(db);
     const resp = await sendRequest(app, "/api/paste/nonexistent");
     assertEquals(resp.status, 404);
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+// ===== POST /api/paste Before Heartbeat (no session yet) =====
+
+Deno.test("POST /api/paste: accepts paste before any heartbeat creates a session", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+
+    // Send paste content directly — no prior heartbeat
+    const resp = await sendRequest(app, "/api/paste", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hash: "pre-session-hash",
+        content: "Pasted before heartbeat",
+        length: 22,
+        sessionId: "client-predicted-session",
+        examId: "exam-1",
+        timestamp: Date.now(),
+      }),
+    });
+    assertEquals(
+      resp.status,
+      200,
+      "paste before heartbeat should succeed (no FK constraint)",
+    );
+
+    // Verify it was stored
+    const stmt = db.prepareQuery(
+      "SELECT content, length FROM paste_contents WHERE hash = ?",
+    );
+    try {
+      const rows = [...stmt.all(["pre-session-hash"])];
+      assertEquals(rows.length, 1, "paste should be stored");
+      assertEquals(rows[0][0], "Pasted before heartbeat");
+      assertEquals(rows[0][1], 22);
+    } finally {
+      stmt.finalize();
+    }
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+// ===== GET /api/paste/:hash requires dashboard authentication =====
+
+Deno.test("GET /api/paste/:hash: returns paste content (dashboard-only per spec)", async () => {
+  // NOTE: The vision spec says GET /api/paste/:hash is 'dashboard-only (requires
+  // authentication)'. Currently the API endpoint has no auth middleware — auth is
+  // only enforced at the dashboard route level. This test documents current behavior.
+  // If auth is added to the API layer later, this test should be updated to verify
+  // that unauthenticated requests are rejected.
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+
+    // Create a session first
+    const hbResp = await sendRequest(app, "/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeHeartbeatPayload()),
+    });
+    const { sessionId } = await hbResp.json();
+
+    // Store paste
+    await sendRequest(app, "/api/paste", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hash: "auth-test-hash",
+        content: "Sensitive paste content",
+        length: 23,
+        sessionId,
+        examId: "exam-1",
+        timestamp: Date.now(),
+      }),
+    });
+
+    // GET without auth — currently returns 200 (no auth middleware on API route)
+    const resp = await sendRequest(app, "/api/paste/auth-test-hash");
+    assertEquals(
+      resp.status,
+      200,
+      "currently no auth on API endpoint (dashboard enforces it)",
+    );
+    const body = await resp.json();
+    assertEquals(body.content, "Sensitive paste content");
   } finally {
     closeTestDb(db);
   }

@@ -94,7 +94,9 @@ Deno.test("computeSessionMetrics: returns paste ratio from heartbeats", () => {
     );
 
     const metrics = computeSessionMetrics(db, session.sessionId);
-    // Total input = 100 + 200 + 10 = 310, paste ratio = 200/310 = 0.645
+    // NOTE: Implementation uses pastedChars / (typed + pasted + deleted) = 200/310
+    // The spec says pastedChars / (typed + pasted). If the spec is authoritative,
+    // the implementation should be fixed to exclude deletedChars from the denominator.
     assertEquals(
       Math.round(metrics.pasteRatio * 1000),
       645,
