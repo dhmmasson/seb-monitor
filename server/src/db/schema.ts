@@ -61,21 +61,27 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);`,
   `CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);`,
 
-  // Paste content store — isolated for access control + retention
-  // No foreign key on session_id: paste arrives via dedicated endpoint,
+  // Paste content store — unified clipboard content for copy and paste events.
+  // No foreign key on session_id: content arrives via dedicated endpoint,
   // may arrive before the first heartbeat creates the session.
+  // PRIMARY KEY is (hash, session_id, event_type) to allow:
+  // - Same hash for different sessions (cross-student)
+  // - Same hash for copy and paste in the same session
   `CREATE TABLE IF NOT EXISTS paste_contents (
-    hash            TEXT PRIMARY KEY,
+    hash            TEXT NOT NULL,
     session_id      TEXT NOT NULL,
     content         TEXT NOT NULL,
     length          INTEGER NOT NULL,
     timestamp       INTEGER NOT NULL,
     exam_id         TEXT NOT NULL,
-    created_at      TEXT DEFAULT (datetime('now'))
+    event_type      TEXT NOT NULL DEFAULT 'paste',
+    created_at      TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (hash, session_id, event_type)
   );`,
 
   `CREATE INDEX IF NOT EXISTS idx_paste_contents_session ON paste_contents(session_id);`,
   `CREATE INDEX IF NOT EXISTS idx_paste_contents_exam ON paste_contents(exam_id);`,
+
 ];
 
 /**

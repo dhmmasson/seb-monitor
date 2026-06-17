@@ -164,6 +164,7 @@ Deno.test("schema: paste_contents table has correct columns", () => {
       "length",
       "timestamp",
       "exam_id",
+      "event_type",
       "created_at",
     ]);
   } finally {

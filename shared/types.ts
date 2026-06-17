@@ -74,6 +74,30 @@ export interface PasteContentRequest {
   sessionId: string;
   examId: string;
   timestamp: number;
+  eventType?: "copy" | "paste";
+}
+
+// ===== Clipboard Content Types =====
+
+export interface ClipboardContentRow {
+  hash: string;
+  eventType: "copy" | "paste";
+  sessionId: string;
+  content: string;
+  length: number;
+  timestamp: number;
+  examId: string;
+  createdAt?: string;
+}
+
+export interface HashUsageStats {
+  hash: string;
+  usageCount: number;
+  copyCount: number;
+  pasteCount: number;
+  firstSeen: number;
+  lastSeen: number;
+  examId: string;
 }
 
 // ===== Server Storage Types =====
@@ -115,6 +139,7 @@ export interface StoredEvent {
 
 export interface StoredPasteContent {
   hash: string;
+  eventType: "copy" | "paste";
   sessionId: string;
   content: string;
   length: number;
