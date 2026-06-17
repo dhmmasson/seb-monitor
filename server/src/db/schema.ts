@@ -92,4 +92,36 @@ export function runMigrations(db: DB): void {
   for (const sql of MIGRATIONS) {
     db.execute(sql);
   }
+  // Apply incremental column additions for databases created before
+  // these columns were introduced (ALTER TABLE IF NOT EXISTS is not
+  // supported in SQLite, so we check PRAGMA table_info manually).
+  addColumnIfMissing(
+    db,
+    "paste_contents",
+    "event_type",
+    "TEXT NOT NULL DEFAULT 'paste'",
+  );
+  // Ensure the index exists (idempotent)
+  db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_paste_contents_type ON paste_contents(event_type);`,
+  );
+}
+
+/**
+ * Add a column to a table only if it does not already exist.
+ * SQLite does not support ALTER TABLE ... ADD COLUMN IF NOT EXISTS,
+ * so we query PRAGMA table_info to check first.
+ */
+function addColumnIfMissing(
+  db: DB,
+  table: string,
+  column: string,
+  definition: string,
+): void {
+  const cols = db.query(`PRAGMA table_info(${table})`);
+  // PRAGMA table_info returns rows: (cid, name, type, notnull, dflt_value, pk)
+  const exists = cols.some((row) => row[1] === column);
+  if (!exists) {
+    db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
