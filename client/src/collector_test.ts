@@ -139,3 +139,56 @@ Deno.test("collector records events and counts together", () => {
   assertEquals(collector.getCopyCount(), 0);
   assertEquals(collector.getPasteCount(), 0);
 });
+
+// ===== Copy Hash Tracking Tests =====
+
+Deno.test("collector starts with no copy hashes", () => {
+  const collector = createCollector();
+  assertEquals(collector.matchPasteHash("anything"), null);
+});
+
+Deno.test("recordCopyHash stores hash for matching", () => {
+  const collector = createCollector();
+  collector.recordCopyHash("abc123");
+  assertEquals(collector.matchPasteHash("abc123"), "abc123");
+});
+
+Deno.test("matchPasteHash returns null when no matching copy", () => {
+  const collector = createCollector();
+  collector.recordCopyHash("abc123");
+  assertEquals(collector.matchPasteHash("def456"), null);
+});
+
+Deno.test("recordCopyHash stores multiple hashes", () => {
+  const collector = createCollector();
+  collector.recordCopyHash("hash1");
+  collector.recordCopyHash("hash2");
+  collector.recordCopyHash("hash3");
+  assertEquals(collector.matchPasteHash("hash1"), "hash1");
+  assertEquals(collector.matchPasteHash("hash2"), "hash2");
+  assertEquals(collector.matchPasteHash("hash3"), "hash3");
+});
+
+Deno.test("clearEvents clears copy hashes", () => {
+  const collector = createCollector();
+  collector.recordCopyHash("abc123");
+  collector.clearEvents();
+  assertEquals(collector.matchPasteHash("abc123"), null);
+});
+
+Deno.test("copy hash tracking bounded at 100 entries", () => {
+  const collector = createCollector();
+  // Add 100 hashes
+  for (let i = 0; i < 100; i++) {
+    collector.recordCopyHash(`hash-${i}`);
+  }
+  // All 100 should be present
+  assertEquals(collector.matchPasteHash("hash-0"), "hash-0");
+  assertEquals(collector.matchPasteHash("hash-99"), "hash-99");
+
+  // Add one more — oldest (hash-0) should be evicted
+  collector.recordCopyHash("hash-100");
+  assertEquals(collector.matchPasteHash("hash-0"), null, "oldest hash should be evicted");
+  assertEquals(collector.matchPasteHash("hash-100"), "hash-100", "newest hash should be present");
+  assertEquals(collector.matchPasteHash("hash-99"), "hash-99", "recent hash should still be present");
+});
