@@ -28,14 +28,15 @@ import { createCollector } from "./collector.ts";
 import { createHeartbeatBuilder } from "./heartbeat.ts";
 import { createSender } from "./sender.ts";
 import {
-  createAceAdapter,
   type AceAdapter,
   type AceAdapterOptions,
+  createAceAdapter,
 } from "./ace-adapter.ts";
 import {
   createPasteDetector,
   type PasteDetector,
   type PasteDetectorOptions,
+  type PasteTimestamp,
 } from "./paste-detector.ts";
 import type { FocusAccumulator, InputStats } from "../../shared/types.ts";
 
@@ -121,8 +122,11 @@ function requireAttr(
  */
 export function initialize(
   scriptElement?: HTMLScriptElement,
-  documentRef?: { querySelector: (s: string) => Element | null },
-  aceAdapterFactory?: (options: AceAdapterOptions, doc?: Document) => AceAdapter,
+  documentRef?: Document,
+  aceAdapterFactory?: (
+    options: AceAdapterOptions,
+    doc?: Document,
+  ) => AceAdapter,
   pasteDetectorFactory?: (options: PasteDetectorOptions) => PasteDetector,
 ): InitResult {
   // Find the script element
@@ -174,6 +178,9 @@ export function initialize(
 
   // Paste detector (optional — SEB-compatible paste detection via keyboard + beforeinput)
   let pasteDetector: PasteDetector | null = null;
+
+  // Shared dedup timestamp — all paste detection layers share this
+  const lastPasteDetectedAt: PasteTimestamp = { value: 0 };
 
   // Sender
   const sender = createSender(serverUrl);
@@ -299,7 +306,11 @@ export function initialize(
   async function handlePaste(e: ClipboardEvent): Promise<void> {
     const pastedText = e.clipboardData?.getData("text") ?? "";
     if (pastedText) {
-      await recordPasteContent(pastedText);
+      const now = Date.now();
+      if (now - lastPasteDetectedAt.value >= 300) {
+        lastPasteDetectedAt.value = now;
+        await recordPasteContent(pastedText);
+      }
     }
   }
 
@@ -379,7 +390,11 @@ export function initialize(
       if (typeof document !== "undefined") {
         document.addEventListener("visibilitychange", handleVisibilityChange);
         document.addEventListener("copy", handleCopy);
-        document.addEventListener("paste", handlePaste as EventListener, true);
+        document.addEventListener(
+          "paste",
+          handlePaste as unknown as EventListener,
+          true,
+        );
         document.addEventListener("keydown", handleKeydown as EventListener);
         document.addEventListener("input", handleInput);
       }
@@ -398,6 +413,7 @@ export function initialize(
               recordInput(input, -delta.text.length, false);
             }
           },
+          lastPasteDetectedAt,
         }, doc as Document);
         aceAdapter.attach();
       }
@@ -409,6 +425,7 @@ export function initialize(
             recordPasteContent(text);
           },
           documentRef: doc as Document,
+          lastPasteDetectedAt,
         });
         pasteDetector.start();
       }
@@ -438,7 +455,11 @@ export function initialize(
           handleVisibilityChange,
         );
         document.removeEventListener("copy", handleCopy);
-        document.removeEventListener("paste", handlePaste as EventListener, true);
+        document.removeEventListener(
+          "paste",
+          handlePaste as unknown as EventListener,
+          true,
+        );
         document.removeEventListener("keydown", handleKeydown as EventListener);
         document.removeEventListener("input", handleInput);
       }

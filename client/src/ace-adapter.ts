@@ -7,11 +7,16 @@
  * @module ace-adapter
  */
 
+import type { PasteTimestamp } from "./paste-detector.ts";
+import { PASTE_DEDUP_WINDOW_MS } from "./paste-detector.ts";
+
 export interface AceAdapterOptions {
   /** Called when paste is detected in an Ace editor */
   onPaste: (text: string) => void;
   /** Called when content changes in an Ace editor */
   onChange: (delta: { action: "insert" | "remove"; text: string }) => void;
+  /** Shared dedup timestamp — checked before recording, updated after */
+  lastPasteDetectedAt?: PasteTimestamp;
 }
 
 /** Represents an Ace editor instance with the subset of API we use */
@@ -70,7 +75,16 @@ export function createAceAdapter(
       const pasteHandler = (e: unknown): void => {
         const event = e as { text?: string };
         if (event.text) {
-          options.onPaste(event.text);
+          const now = Date.now();
+          if (
+            !options.lastPasteDetectedAt ||
+            now - options.lastPasteDetectedAt.value >= PASTE_DEDUP_WINDOW_MS
+          ) {
+            if (options.lastPasteDetectedAt) {
+              options.lastPasteDetectedAt.value = now;
+            }
+            options.onPaste(event.text);
+          }
         }
       };
 

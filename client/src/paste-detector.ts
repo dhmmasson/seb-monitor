@@ -24,6 +24,15 @@ export interface AnswerField {
   getAttribute?(name: string): string | null;
 }
 
+/** Dedup window in milliseconds — paste events within this window are considered duplicates */
+export const PASTE_DEDUP_WINDOW_MS = 300;
+
+/** Shared mutable timestamp across paste detection layers */
+export interface PasteTimestamp {
+  /** Timestamp (ms) of the last recorded paste, 0 if none */
+  value: number;
+}
+
 /** Options for creating a paste detector */
 export interface PasteDetectorOptions {
   /** Called when paste text is detected (from any layer) */
@@ -32,6 +41,8 @@ export interface PasteDetectorOptions {
   documentRef?: Document;
   /** Function that returns current answer fields (default: queries DOM) */
   answerFieldsFn?: () => AnswerField[];
+  /** Shared dedup timestamp — checked before recording, updated after */
+  lastPasteDetectedAt?: PasteTimestamp;
 }
 
 /** Get text content from an answer field */
@@ -153,7 +164,16 @@ export function createPasteDetector(
 
     const text = diffAfterSnapshot();
     if (text) {
-      options.onPaste(text);
+      const now = Date.now();
+      if (
+        !options.lastPasteDetectedAt ||
+        now - options.lastPasteDetectedAt.value >= PASTE_DEDUP_WINDOW_MS
+      ) {
+        if (options.lastPasteDetectedAt) {
+          options.lastPasteDetectedAt.value = now;
+        }
+        options.onPaste(text);
+      }
     }
   }
 
@@ -162,7 +182,16 @@ export function createPasteDetector(
     if (event.inputType !== "insertFromPaste") return;
     const data = event.data;
     if (!data) return;
-    options.onPaste(data);
+    const now = Date.now();
+    if (
+      !options.lastPasteDetectedAt ||
+      now - options.lastPasteDetectedAt.value >= PASTE_DEDUP_WINDOW_MS
+    ) {
+      if (options.lastPasteDetectedAt) {
+        options.lastPasteDetectedAt.value = now;
+      }
+      options.onPaste(data);
+    }
   }
 
   return {
