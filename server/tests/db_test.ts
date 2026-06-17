@@ -10,6 +10,8 @@ import { insertEvents } from "../src/db/events.ts";
 import {
   getPasteContent,
   insertPasteContent,
+  getAllClipboardContent,
+  getHashUsageStats,
 } from "../src/db/paste_contents.ts";
 
 // Helper to query with args using the deno.land/x/sqlite API
@@ -518,6 +520,274 @@ Deno.test("events: insertEvents stores matchedCopyHash for paste events", () => 
     // unmatched paste has null matchedCopyHash
     assertEquals(rows[2][0], "paste");
     assertEquals(rows[2][2], null);
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+// ===== Clipboard Content: event_type column =====
+
+Deno.test("paste_contents: event_type column exists", () => {
+  const db = createTestDb();
+  try {
+    const rows = db.query("PRAGMA table_info(paste_contents)");
+    const columnNames = rows.map((r: unknown[]) => r[1] as string);
+    assertEquals(
+      columnNames.includes("event_type"),
+      true,
+      "paste_contents should have event_type column",
+    );
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("paste_contents: event_type defaults to paste", () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "student-1", "exam-1");
+
+    // Insert without specifying event_type — should default to 'paste'
+    insertPasteContent(db, {
+      hash: "default-test",
+      content: "Hello",
+      length: 5,
+      sessionId: session.sessionId,
+      examId: "exam-1",
+      timestamp: Date.now(),
+    });
+
+    const rows = queryAll(
+      db,
+      "SELECT event_type FROM paste_contents WHERE hash = ?",
+      ["default-test"],
+    );
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0][0], "paste", "event_type should default to 'paste'");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("paste_contents: can insert with event_type copy", () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "student-1", "exam-1");
+
+    insertPasteContent(db, {
+      hash: "copy-test",
+      content: "Copied text",
+      length: 12,
+      sessionId: session.sessionId,
+      examId: "exam-1",
+      timestamp: Date.now(),
+      eventType: "copy",
+    });
+
+    const rows = queryAll(
+      db,
+      "SELECT event_type, content FROM paste_contents WHERE hash = ?",
+      ["copy-test"],
+    );
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0][0], "copy");
+    assertEquals(rows[0][1], "Copied text");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("paste_contents: can insert with event_type paste", () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "student-1", "exam-1");
+
+    insertPasteContent(db, {
+      hash: "paste-test",
+      content: "Pasted text",
+      length: 11,
+      sessionId: session.sessionId,
+      examId: "exam-1",
+      timestamp: Date.now(),
+      eventType: "paste",
+    });
+
+    const rows = queryAll(
+      db,
+      "SELECT event_type, content FROM paste_contents WHERE hash = ?",
+      ["paste-test"],
+    );
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0][0], "paste");
+    assertEquals(rows[0][1], "Pasted text");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+// ===== Clipboard Content: getAllClipboardContent =====
+
+Deno.test("paste_contents: getAllClipboardContent returns all rows for a hash", () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "student-1", "exam-1");
+
+    // Insert copy event
+    insertPasteContent(db, {
+      hash: "multi-hash",
+      content: "Shared content",
+      length: 14,
+      sessionId: session.sessionId,
+      examId: "exam-1",
+      timestamp: 1000,
+      eventType: "copy",
+    });
+
+    // Insert paste event with same hash (different session)
+    const session2 = findOrCreate(db, "student-2", "exam-1");
+    insertPasteContent(db, {
+      hash: "multi-hash",
+      content: "Shared content",
+      length: 14,
+      sessionId: session2.sessionId,
+      examId: "exam-1",
+      timestamp: 2000,
+      eventType: "paste",
+    });
+
+    const rows = getAllClipboardContent(db, "multi-hash");
+    assertEquals(rows.length, 2, "should return both rows");
+
+    // First row is the copy
+    assertEquals(rows[0].eventType, "copy");
+    assertEquals(rows[0].sessionId, session.sessionId);
+    assertEquals(rows[0].content, "Shared content");
+
+    // Second row is the paste
+    assertEquals(rows[1].eventType, "paste");
+    assertEquals(rows[1].sessionId, session2.sessionId);
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("paste_contents: getAllClipboardContent returns empty for missing hash", () => {
+  const db = createTestDb();
+  try {
+    const rows = getAllClipboardContent(db, "nonexistent");
+    assertEquals(rows.length, 0, "should return empty array");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+// ===== Clipboard Content: getHashUsageStats =====
+
+Deno.test("paste_contents: getHashUsageStats aggregates correctly", () => {
+  const db = createTestDb();
+  try {
+    const session1 = findOrCreate(db, "student-1", "exam-1");
+    const session2 = findOrCreate(db, "student-2", "exam-1");
+
+    // Hash A: 1 copy + 2 pastes = 3 uses
+    insertPasteContent(db, {
+      hash: "hash-a",
+      content: "Content A",
+      length: 9,
+      sessionId: session1.sessionId,
+      examId: "exam-1",
+      timestamp: 1000,
+      eventType: "copy",
+    });
+    insertPasteContent(db, {
+      hash: "hash-a",
+      content: "Content A",
+      length: 9,
+      sessionId: session1.sessionId,
+      examId: "exam-1",
+      timestamp: 2000,
+      eventType: "paste",
+    });
+    insertPasteContent(db, {
+      hash: "hash-a",
+      content: "Content A",
+      length: 9,
+      sessionId: session2.sessionId,
+      examId: "exam-1",
+      timestamp: 3000,
+      eventType: "paste",
+    });
+
+    // Hash B: 2 copies = 2 uses
+    insertPasteContent(db, {
+      hash: "hash-b",
+      content: "Content B",
+      length: 9,
+      sessionId: session1.sessionId,
+      examId: "exam-1",
+      timestamp: 1500,
+      eventType: "copy",
+    });
+    insertPasteContent(db, {
+      hash: "hash-b",
+      content: "Content B",
+      length: 9,
+      sessionId: session2.sessionId,
+      examId: "exam-1",
+      timestamp: 2500,
+      eventType: "copy",
+    });
+
+    const stats = getHashUsageStats(db);
+    assertEquals(stats.length, 2, "should have 2 hash entries");
+
+    // Hash A should be first (3 uses > 2 uses)
+    assertEquals(stats[0].hash, "hash-a");
+    assertEquals(stats[0].usageCount, 3);
+    assertEquals(stats[0].copyCount, 1);
+    assertEquals(stats[0].pasteCount, 2);
+    assertEquals(stats[0].firstSeen, 1000);
+    assertEquals(stats[0].lastSeen, 3000);
+    assertEquals(stats[0].examId, "exam-1");
+
+    // Hash B should be second
+    assertEquals(stats[1].hash, "hash-b");
+    assertEquals(stats[1].usageCount, 2);
+    assertEquals(stats[1].copyCount, 2);
+    assertEquals(stats[1].pasteCount, 0);
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("paste_contents: getHashUsageStats returns empty when no data", () => {
+  const db = createTestDb();
+  try {
+    const stats = getHashUsageStats(db);
+    assertEquals(stats.length, 0, "should return empty array");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("paste_contents: getPasteContent returns event_type", () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "student-1", "exam-1");
+
+    insertPasteContent(db, {
+      hash: "with-type",
+      content: "Test content",
+      length: 12,
+      sessionId: session.sessionId,
+      examId: "exam-1",
+      timestamp: Date.now(),
+      eventType: "copy",
+    });
+
+    const result = getPasteContent(db, "with-type");
+    assertExists(result, "should find content");
+    assertEquals(result.eventType, "copy", "should return event_type");
   } finally {
     closeTestDb(db);
   }
