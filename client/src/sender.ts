@@ -20,8 +20,10 @@ export interface SenderOptions {
 export interface Sender {
   /** Send a heartbeat payload to the server, returns parsed response with sessionId */
   sendHeartbeat(payload: HeartbeatPayload): Promise<{ sessionId?: string }>;
-  /** Send paste content to the server */
+  /** Send paste content to the server (legacy endpoint) */
   sendPasteContent(request: PasteContentRequest): Promise<void>;
+  /** Send clipboard content (copy or paste) to the unified endpoint */
+  sendClipboardContent(request: PasteContentRequest & { eventType: "copy" | "paste" }): Promise<void>;
 }
 
 /** Fetch function type for dependency injection */
@@ -87,6 +89,11 @@ export function createSender(
     /** Send paste content to /api/paste endpoint */
     async sendPasteContent(request: PasteContentRequest): Promise<void> {
       await sendWithRetry(`${baseUrl}/api/paste`, request);
+    },
+
+    /** Send clipboard content (copy or paste) to /api/clipboard endpoint */
+    async sendClipboardContent(request: PasteContentRequest & { eventType: "copy" | "paste" }): Promise<void> {
+      await sendWithRetry(`${baseUrl}/api/clipboard`, request);
     },
   };
 }
