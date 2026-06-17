@@ -458,3 +458,58 @@ Deno.test("layers dedup each other with shared timestamp", () => {
   detector.handleBeforeInput(mockBeforeInput("insertFromPaste", "pasted"));
   assertEquals(pasteCount, 1);
 });
+
+// ===== SEB retry behavior (handleKeyboardPaste returns boolean) =====
+
+Deno.test("handleKeyboardPaste returns true when paste is detected", () => {
+  let fields: AnswerField[] = [{ value: "before ", getAttribute: () => null }];
+  const detector = createPasteDetector({
+    onPaste: () => {},
+    answerFieldsFn: () => fields,
+  });
+
+  detector.snapshotAnswerFields();
+  fields = [{ value: "before pasted text", getAttribute: () => null }];
+
+  const detected = detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
+  assertEquals(detected, true);
+});
+
+Deno.test("handleKeyboardPaste returns false when content not yet changed (SEB async injection)", () => {
+  // Simulates SEB on Windows: Ctrl+V pressed but clipboard not yet injected
+  const fields: AnswerField[] = [{ value: "before ", getAttribute: () => null }];
+  const detector = createPasteDetector({
+    onPaste: () => {},
+    answerFieldsFn: () => fields,
+  });
+
+  detector.snapshotAnswerFields();
+  // No content change yet (SEB hasn't injected yet)
+  const detected = detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
+  assertEquals(detected, false);
+});
+
+Deno.test("retry after SEB async injection: second call detects paste", () => {
+  // First call misses (SEB not done), second call hits
+  let pasteCount = 0;
+  let fields: AnswerField[] = [{ value: "before ", getAttribute: () => null }];
+  const detector = createPasteDetector({
+    onPaste: () => { pasteCount++; },
+    answerFieldsFn: () => fields,
+  });
+
+  detector.snapshotAnswerFields();
+
+  // First call: SEB hasn't injected yet — no change
+  const firstResult = detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
+  assertEquals(firstResult, false);
+  assertEquals(pasteCount, 0);
+
+  // SEB now injects the content asynchronously
+  fields = [{ value: "before pasted text", getAttribute: () => null }];
+
+  // Second call (retry): content now changed — should detect
+  const secondResult = detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
+  assertEquals(secondResult, true);
+  assertEquals(pasteCount, 1);
+});

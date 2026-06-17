@@ -105,8 +105,12 @@ export interface PasteDetector {
   stop(): void;
   /** Snapshot current answer field content (call before paste action) */
   snapshotAnswerFields(): void;
-  /** Handle a keyboard paste event (called from keydown handler) */
-  handleKeyboardPaste(event: KeyboardEvent): void;
+  /**
+   * Handle a keyboard paste event (called from keydown handler).
+   * Returns true if a paste was detected (content changed), false otherwise.
+   * Returning false allows the caller to retry after a delay (SEB async injection).
+   */
+  handleKeyboardPaste(event: KeyboardEvent): boolean;
   /** Handle a beforeinput event */
   handleBeforeInput(event: InputEvent): void;
   /** Default answer fields query function */
@@ -156,11 +160,14 @@ export function createPasteDetector(
     return extractPastedText(snapshotBefore, snapshotAfter);
   }
 
-  /** Handle keyboard paste event (Ctrl+V / Cmd+V) — diff-based */
-  function handleKeyboardPaste(event: KeyboardEvent): void {
+  /** Handle keyboard paste event (Ctrl+V / Cmd+V) — diff-based.
+   * Returns true if a paste was detected (content diff found), false otherwise.
+   * Callers can retry on false to handle SEB's async clipboard injection.
+   */
+  function handleKeyboardPaste(event: KeyboardEvent): boolean {
     const isPasteKey = event.key === "v" &&
       (event.ctrlKey || event.metaKey);
-    if (!isPasteKey) return;
+    if (!isPasteKey) return false;
 
     const text = diffAfterSnapshot();
     if (text) {
@@ -174,7 +181,9 @@ export function createPasteDetector(
         }
         options.onPaste(text);
       }
+      return true;
     }
+    return false;
   }
 
   /** Handle beforeinput event — direct text from event.data */
@@ -201,8 +210,16 @@ export function createPasteDetector(
       keydownBound = (e: KeyboardEvent) => {
         // Snapshot before the paste modifies content
         snapshotAnswerFields();
-        // Use microtask to run diff after the browser inserts content
-        queueMicrotask(() => handleKeyboardPaste(e));
+        // Phase 1: microtask — works for standard browsers where paste is synchronous
+        queueMicrotask(() => {
+          if (!handleKeyboardPaste(e)) {
+            // Phase 2: delayed retry — handles SEB on Windows, which injects
+            // clipboard content asynchronously after the keydown event fires.
+            // 150 ms is long enough for SEB to complete injection but short
+            // enough not to pick up unrelated keystrokes.
+            setTimeout(() => handleKeyboardPaste(e), 150);
+          }
+        });
       };
       beforeInputBound = (e: Event) => handleBeforeInput(e as InputEvent);
 
@@ -230,9 +247,10 @@ export function createPasteDetector(
 
     snapshotAnswerFields,
 
-    /** Handle keyboard paste directly — diff against existing snapshot */
-    handleKeyboardPaste(event: KeyboardEvent): void {
-      handleKeyboardPaste(event);
+    /** Handle keyboard paste directly — diff against existing snapshot.
+     * Returns true if paste was detected, false otherwise. */
+    handleKeyboardPaste(event: KeyboardEvent): boolean {
+      return handleKeyboardPaste(event);
     },
 
     handleBeforeInput,
