@@ -21,6 +21,10 @@ export interface Collector {
   recordCopy(): void;
   /** Record a paste event */
   recordPaste(): void;
+  /** Record a copy hash for paste matching */
+  recordCopyHash(hash: string): void;
+  /** Match a paste hash against previously recorded copies */
+  matchPasteHash(pasteHash: string): string | null;
   /** Clear event buffer and reset counts */
   clearEvents(): void;
   /** Get total copy count since last clear */
@@ -43,6 +47,10 @@ export function createCollector(): Collector {
   let pasteCount = 0;
   let _started = false;
 
+  // Copy hash tracking for paste matching (bounded at 100 entries)
+  const copyHashes = new Map<string, number>(); // hash → timestamp
+  const MAX_COPY_HASHES = 100;
+
   return {
     start(): void {
       _started = true;
@@ -62,10 +70,23 @@ export function createCollector(): Collector {
     recordPaste(): void {
       pasteCount++;
     },
+    recordCopyHash(hash: string): void {
+      copyHashes.set(hash, Date.now());
+      // Evict oldest if over limit
+      if (copyHashes.size > MAX_COPY_HASHES) {
+        const oldest = [...copyHashes.entries()]
+          .sort((a, b) => a[1] - b[1])[0];
+        copyHashes.delete(oldest[0]);
+      }
+    },
+    matchPasteHash(pasteHash: string): string | null {
+      return copyHashes.has(pasteHash) ? pasteHash : null;
+    },
     clearEvents(): void {
       events.length = 0;
       copyCount = 0;
       pasteCount = 0;
+      copyHashes.clear();
     },
     getCopyCount(): number {
       return copyCount;
