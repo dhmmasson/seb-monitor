@@ -267,29 +267,39 @@ export function initialize(
     }
   }
 
+  /**
+   * Shared paste content handler — used by native paste event, Ace adapter,
+   * and paste detector. Records the paste, buffers content for sending,
+   * and schedules an immediate heartbeat.
+   */
+  async function recordPasteContent(text: string): Promise<void> {
+    if (!text) return;
+    const hash = await sha256(text);
+    collector.recordPaste();
+    lastInputWasPaste = true;
+
+    collector.record({
+      type: "paste",
+      timestamp: Date.now(),
+      hash,
+      length: text.length,
+      matchedCopyHash: null,
+    });
+
+    // Buffer paste content — will be sent after heartbeat establishes sessionId
+    pendingPastes.push({
+      hash,
+      content: text,
+      length: text.length,
+      timestamp: Date.now(),
+    });
+    scheduleImmediateHeartbeat();
+  }
+
   async function handlePaste(e: ClipboardEvent): Promise<void> {
     const pastedText = e.clipboardData?.getData("text") ?? "";
     if (pastedText) {
-      const hash = await sha256(pastedText);
-      collector.recordPaste();
-      lastInputWasPaste = true;
-
-      collector.record({
-        type: "paste",
-        timestamp: Date.now(),
-        hash,
-        length: pastedText.length,
-        matchedCopyHash: null,
-      });
-
-      // Buffer paste content — will be sent after heartbeat establishes sessionId
-      pendingPastes.push({
-        hash,
-        content: pastedText,
-        length: pastedText.length,
-        timestamp: Date.now(),
-      });
-      scheduleImmediateHeartbeat();
+      await recordPasteContent(pastedText);
     }
   }
 
@@ -378,25 +388,7 @@ export function initialize(
       if (aceAdapterFactory) {
         aceAdapter = aceAdapterFactory({
           onPaste: (text: string) => {
-            // Ace paste handler — mirrors handlePaste logic but with direct text
-            sha256(text).then((hash) => {
-              collector.recordPaste();
-              lastInputWasPaste = true;
-              collector.record({
-                type: "paste",
-                timestamp: Date.now(),
-                hash,
-                length: text.length,
-                matchedCopyHash: null,
-              });
-              pendingPastes.push({
-                hash,
-                content: text,
-                length: text.length,
-                timestamp: Date.now(),
-              });
-              scheduleImmediateHeartbeat();
-            });
+            recordPasteContent(text);
           },
           onChange: (delta) => {
             if (delta.action === "insert") {
@@ -414,25 +406,7 @@ export function initialize(
       if (pasteDetectorFactory) {
         pasteDetector = pasteDetectorFactory({
           onPaste: (text: string) => {
-            // Paste detector handler — mirrors handlePaste logic with direct text
-            sha256(text).then((hash) => {
-              collector.recordPaste();
-              lastInputWasPaste = true;
-              collector.record({
-                type: "paste",
-                timestamp: Date.now(),
-                hash,
-                length: text.length,
-                matchedCopyHash: null,
-              });
-              pendingPastes.push({
-                hash,
-                content: text,
-                length: text.length,
-                timestamp: Date.now(),
-              });
-              scheduleImmediateHeartbeat();
-            });
+            recordPasteContent(text);
           },
           documentRef: doc as Document,
         });
