@@ -156,11 +156,12 @@ export function initialize(
   const collector = createCollector();
 
   // State
-  const pendingPastes: {
+  const pendingClipboard: {
     hash: string;
     content: string;
     length: number;
     timestamp: number;
+    eventType: "copy" | "paste";
   }[] = [];
   let lastFocusTime = Date.now();
   let isFocused = typeof document !== "undefined"
@@ -264,12 +265,23 @@ export function initialize(
     if (selection) {
       const hash = await sha256(selection);
       collector.recordCopy();
+      collector.recordCopyHash(hash); // Track for paste matching
       collector.record({
         type: "copy",
         timestamp: Date.now(),
         hash,
         length: selection.length,
       });
+
+      // Send copy content immediately (like paste)
+      pendingClipboard.push({
+        hash,
+        content: selection,
+        length: selection.length,
+        timestamp: Date.now(),
+        eventType: "copy",
+      });
+
       scheduleImmediateHeartbeat();
     }
   }
@@ -285,20 +297,22 @@ export function initialize(
     collector.recordPaste();
     lastInputWasPaste = true;
 
+    const matchedCopyHash = collector.matchPasteHash(hash); // Match against recorded copies
     collector.record({
       type: "paste",
       timestamp: Date.now(),
       hash,
       length: text.length,
-      matchedCopyHash: null,
+      matchedCopyHash,
     });
 
     // Buffer paste content — will be sent after heartbeat establishes sessionId
-    pendingPastes.push({
+    pendingClipboard.push({
       hash,
       content: text,
       length: text.length,
       timestamp: Date.now(),
+      eventType: "paste",
     });
     scheduleImmediateHeartbeat();
   }
@@ -350,18 +364,19 @@ export function initialize(
       const result = await sender.sendHeartbeat(payload);
       sessionId = result.sessionId ?? sessionId;
 
-      // Flush any buffered paste content now that we have a sessionId
-      for (const paste of pendingPastes) {
-        await sender.sendPasteContent({
-          hash: paste.hash,
-          content: paste.content,
-          length: paste.length,
+      // Flush any buffered clipboard content now that we have a sessionId
+      for (const item of pendingClipboard) {
+        await sender.sendClipboardContent({
+          hash: item.hash,
+          content: item.content,
+          length: item.length,
           sessionId,
           examId,
-          timestamp: paste.timestamp,
+          timestamp: item.timestamp,
+          eventType: item.eventType,
         });
       }
-      pendingPastes.length = 0;
+      pendingClipboard.length = 0;
 
       // Reset after successful send
       resetAccumulators(focus, input, keys);

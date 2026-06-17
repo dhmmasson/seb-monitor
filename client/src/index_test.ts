@@ -342,7 +342,7 @@ function setupGlobals(mockDoc: ReturnType<typeof createMockDocument>) {
       : url instanceof URL
       ? url.href
       : url.url;
-    if (urlStr.includes("/api/paste")) {
+    if (urlStr.includes("/api/paste") || urlStr.includes("/api/clipboard")) {
       pasteContentCount++;
     } else {
       heartbeatCount++;
