@@ -338,3 +338,223 @@ Deno.test("GET /api/paste/:hash: returns paste content (dashboard-only per spec)
     closeTestDb(db);
   }
 });
+
+// ===== POST /api/clipboard Tests =====
+
+Deno.test("POST /api/clipboard: stores paste content", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+
+    // First create a session via heartbeat
+    const hbResp = await sendRequest(app, "/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeHeartbeatPayload()),
+    });
+    const { sessionId } = await hbResp.json();
+
+    // Send clipboard content with eventType paste
+    const resp = await sendRequest(app, "/api/clipboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hash: "clip-paste-1",
+        content: "Pasted text",
+        length: 11,
+        sessionId,
+        examId: "exam-1",
+        timestamp: Date.now(),
+        eventType: "paste",
+      }),
+    });
+    assertEquals(resp.status, 200);
+
+    // Verify stored with correct event_type
+    const stmt = db.prepareQuery(
+      "SELECT event_type, content FROM paste_contents WHERE hash = ?"
+    );
+    try {
+      const rows = [...stmt.all(["clip-paste-1"])];
+      assertEquals(rows.length, 1);
+      assertEquals(rows[0][0], "paste");
+      assertEquals(rows[0][1], "Pasted text");
+    } finally {
+      stmt.finalize();
+    }
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("POST /api/clipboard: stores copy content", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+
+    const hbResp = await sendRequest(app, "/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeHeartbeatPayload()),
+    });
+    const { sessionId } = await hbResp.json();
+
+    // Send clipboard content with eventType copy
+    const resp = await sendRequest(app, "/api/clipboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hash: "clip-copy-1",
+        content: "Copied text",
+        length: 11,
+        sessionId,
+        examId: "exam-1",
+        timestamp: Date.now(),
+        eventType: "copy",
+      }),
+    });
+    assertEquals(resp.status, 200);
+
+    // Verify stored with correct event_type
+    const stmt = db.prepareQuery(
+      "SELECT event_type, content FROM paste_contents WHERE hash = ?"
+    );
+    try {
+      const rows = [...stmt.all(["clip-copy-1"])];
+      assertEquals(rows.length, 1);
+      assertEquals(rows[0][0], "copy");
+      assertEquals(rows[0][1], "Copied text");
+    } finally {
+      stmt.finalize();
+    }
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("POST /api/clipboard: returns 400 for invalid payload", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+    const resp = await sendRequest(app, "/api/clipboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invalid: "payload" }),
+    });
+    assertEquals(resp.status, 400);
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("GET /api/clipboard/:hash: returns all rows for hash", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+
+    // Create two sessions
+    const hbResp1 = await sendRequest(app, "/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeHeartbeatPayload({ studentId: "s1" })),
+    });
+    const { sessionId: s1 } = await hbResp1.json();
+
+    const hbResp2 = await sendRequest(app, "/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeHeartbeatPayload({ studentId: "s2" })),
+    });
+    const { sessionId: s2 } = await hbResp2.json();
+
+    // Store copy from s1
+    await sendRequest(app, "/api/clipboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hash: "shared-hash",
+        content: "Shared content",
+        length: 14,
+        sessionId: s1,
+        examId: "exam-1",
+        timestamp: 1000,
+        eventType: "copy",
+      }),
+    });
+
+    // Store paste from s2 with same hash
+    await sendRequest(app, "/api/clipboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hash: "shared-hash",
+        content: "Shared content",
+        length: 14,
+        sessionId: s2,
+        examId: "exam-1",
+        timestamp: 2000,
+        eventType: "paste",
+      }),
+    });
+
+    // GET should return both rows
+    const resp = await sendRequest(app, "/api/clipboard/shared-hash");
+    assertEquals(resp.status, 200);
+    const body = await resp.json();
+    assertEquals(Array.isArray(body), true);
+    assertEquals(body.length, 2);
+    assertEquals(body[0].eventType, "copy");
+    assertEquals(body[1].eventType, "paste");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("GET /api/clipboard/:hash: returns 404 for missing hash", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+    const resp = await sendRequest(app, "/api/clipboard/nonexistent");
+    assertEquals(resp.status, 404);
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("POST /api/clipboard: works before any heartbeat (no FK)", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+
+    // Send clipboard content directly — no prior heartbeat
+    const resp = await sendRequest(app, "/api/clipboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hash: "pre-session-hash",
+        content: "Early content",
+        length: 13,
+        sessionId: "client-predicted-session",
+        examId: "exam-1",
+        timestamp: Date.now(),
+        eventType: "copy",
+      }),
+    });
+    assertEquals(resp.status, 200);
+
+    // Verify stored
+    const stmt = db.prepareQuery(
+      "SELECT content, event_type FROM paste_contents WHERE hash = ?"
+    );
+    try {
+      const rows = [...stmt.all(["pre-session-hash"])];
+      assertEquals(rows.length, 1);
+      assertEquals(rows[0][0], "Early content");
+      assertEquals(rows[0][1], "copy");
+    } finally {
+      stmt.finalize();
+    }
+  } finally {
+    closeTestDb(db);
+  }
+});
