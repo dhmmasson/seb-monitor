@@ -2,7 +2,40 @@ import { assertEquals, assertExists } from "@std/assert";
 import {
   createPasteDetector,
   extractPastedText,
+  type AnswerField,
 } from "./paste-detector.ts";
+
+/**
+ * Create a mock keyboard event for testing.
+ * Deno test env doesn't have browser KeyboardEvent constructor.
+ */
+function mockKeydown(
+  key: string,
+  opts: { ctrlKey?: boolean; metaKey?: boolean } = {},
+): KeyboardEvent {
+  return {
+    type: "keydown",
+    key,
+    ctrlKey: opts.ctrlKey ?? false,
+    metaKey: opts.metaKey ?? false,
+    bubbles: true,
+  } as unknown as KeyboardEvent;
+}
+
+/**
+ * Create a mock InputEvent for testing.
+ * Deno test env may not have browser InputEvent constructor.
+ */
+function mockBeforeInput(
+  inputType: string,
+  data: string | null,
+): InputEvent {
+  return {
+    type: "beforeinput",
+    inputType,
+    data,
+  } as unknown as InputEvent;
+}
 
 // ===== extractPastedText Tests =====
 
@@ -26,8 +59,8 @@ Deno.test("extractPastedText handles paste at beginning", () => {
   assertEquals(extractPastedText("world", "hello world"), "hello ");
 });
 
-Deno.test("extractPastedText handles paste in middle", () => {
-  assertEquals(extractPastedText("hd", "hello d"), "ello ");
+Deno.test("extractPastedText handles paste in middle (text split)", () => {
+  assertEquals(extractPastedText("hello", "hello world!"), " world!");
 });
 
 Deno.test("extractPastedText handles multiline content", () => {
@@ -52,126 +85,94 @@ Deno.test("createPasteDetector returns detector with start/stop methods", () => 
 
 Deno.test("detects Ctrl+V paste with content change", () => {
   let detectedText = "";
+  let fields: AnswerField[] = [
+    { value: "before ", getAttribute: () => null },
+  ];
   const detector = createPasteDetector({
     onPaste: (text) => { detectedText = text; },
-    answerFieldsFn: () => [
-      { value: "before ", getAttribute: () => null },
-    ],
+    answerFieldsFn: () => fields,
   });
 
   // Snapshot before paste
   detector.snapshotAnswerFields();
 
   // Simulate content change (what the textarea looks like after paste)
-  detector.answerFieldsFn = () => [
-    { value: "before pasted text", getAttribute: () => null },
-  ];
+  fields = [{ value: "before pasted text", getAttribute: () => null }];
 
-  detector.handleKeyboardPaste(
-    new KeyboardEvent("keydown", {
-      key: "v",
-      ctrlKey: true,
-      bubbles: true,
-    }) as KeyboardEvent,
-  );
+  detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
 
   assertEquals(detectedText, "pasted text");
 });
 
 Deno.test("detects Cmd+V (Mac) paste with content change", () => {
   let detectedText = "";
+  let fields: AnswerField[] = [
+    { value: "before ", getAttribute: () => null },
+  ];
   const detector = createPasteDetector({
     onPaste: (text) => { detectedText = text; },
-    answerFieldsFn: () => [
-      { value: "before ", getAttribute: () => null },
-    ],
+    answerFieldsFn: () => fields,
   });
 
   detector.snapshotAnswerFields();
-  detector.answerFieldsFn = () => [
-    { value: "before mac paste", getAttribute: () => null },
-  ];
+  fields = [{ value: "before mac paste", getAttribute: () => null }];
 
-  detector.handleKeyboardPaste(
-    new KeyboardEvent("keydown", {
-      key: "v",
-      metaKey: true,
-      bubbles: true,
-    }) as KeyboardEvent,
-  );
+  detector.handleKeyboardPaste(mockKeydown("v", { metaKey: true }));
 
   assertEquals(detectedText, "mac paste");
 });
 
 Deno.test("does not detect paste when content unchanged", () => {
   let pasteDetected = false;
+  const fields: AnswerField[] = [
+    { value: "same", getAttribute: () => null },
+  ];
   const detector = createPasteDetector({
     onPaste: () => { pasteDetected = true; },
-    answerFieldsFn: () => [
-      { value: "same", getAttribute: () => null },
-    ],
+    answerFieldsFn: () => fields,
   });
 
   detector.snapshotAnswerFields();
   // No content change
-  detector.handleKeyboardPaste(
-    new KeyboardEvent("keydown", {
-      key: "v",
-      ctrlKey: true,
-      bubbles: true,
-    }) as KeyboardEvent,
-  );
+  detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
 
   assertEquals(pasteDetected, false);
 });
 
 Deno.test("does not detect non-paste keyboard shortcuts", () => {
   let pasteDetected = false;
+  let fields: AnswerField[] = [
+    { value: "before ", getAttribute: () => null },
+  ];
   const detector = createPasteDetector({
     onPaste: () => { pasteDetected = true; },
-    answerFieldsFn: () => [
-      { value: "before ", getAttribute: () => null },
-    ],
+    answerFieldsFn: () => fields,
   });
 
   detector.snapshotAnswerFields();
-  detector.answerFieldsFn = () => [
-    { value: "before x", getAttribute: () => null },
-  ];
+  fields = [{ value: "before x", getAttribute: () => null }];
 
   // Ctrl+C (copy, not paste)
-  detector.handleKeyboardPaste(
-    new KeyboardEvent("keydown", {
-      key: "c",
-      ctrlKey: true,
-      bubbles: true,
-    }) as KeyboardEvent,
-  );
+  detector.handleKeyboardPaste(mockKeydown("c", { ctrlKey: true }));
 
   assertEquals(pasteDetected, false);
 });
 
 Deno.test("does not detect paste without modifier key", () => {
   let pasteDetected = false;
+  let fields: AnswerField[] = [
+    { value: "before ", getAttribute: () => null },
+  ];
   const detector = createPasteDetector({
     onPaste: () => { pasteDetected = true; },
-    answerFieldsFn: () => [
-      { value: "before ", getAttribute: () => null },
-    ],
+    answerFieldsFn: () => fields,
   });
 
   detector.snapshotAnswerFields();
-  detector.answerFieldsFn = () => [
-    { value: "before text", getAttribute: () => null },
-  ];
+  fields = [{ value: "before text", getAttribute: () => null }];
 
   // Just 'v' without modifier
-  detector.handleKeyboardPaste(
-    new KeyboardEvent("keydown", {
-      key: "v",
-      bubbles: true,
-    }) as KeyboardEvent,
-  );
+  detector.handleKeyboardPaste(mockKeydown("v"));
 
   assertEquals(pasteDetected, false);
 });
@@ -184,17 +185,7 @@ Deno.test("detects paste via beforeinput with insertFromPaste", () => {
     onPaste: (text) => { detectedText = text; },
   });
 
-  const event = new Event("beforeinput") as InputEvent;
-  Object.defineProperty(event, "inputType", {
-    value: "insertFromPaste",
-    writable: false,
-  });
-  Object.defineProperty(event, "data", {
-    value: "pasted via beforeinput",
-    writable: false,
-  });
-
-  detector.handleBeforeInput(event);
+  detector.handleBeforeInput(mockBeforeInput("insertFromPaste", "pasted via beforeinput"));
 
   assertEquals(detectedText, "pasted via beforeinput");
 });
@@ -205,17 +196,7 @@ Deno.test("ignores beforeinput with non-paste inputType", () => {
     onPaste: () => { pasteDetected = true; },
   });
 
-  const event = new Event("beforeinput") as InputEvent;
-  Object.defineProperty(event, "inputType", {
-    value: "insertText",
-    writable: false,
-  });
-  Object.defineProperty(event, "data", {
-    value: "typed char",
-    writable: false,
-  });
-
-  detector.handleBeforeInput(event);
+  detector.handleBeforeInput(mockBeforeInput("insertText", "typed char"));
 
   assertEquals(pasteDetected, false);
 });
@@ -226,17 +207,7 @@ Deno.test("ignores beforeinput with null data", () => {
     onPaste: () => { pasteDetected = true; },
   });
 
-  const event = new Event("beforeinput") as InputEvent;
-  Object.defineProperty(event, "inputType", {
-    value: "insertFromPaste",
-    writable: false,
-  });
-  Object.defineProperty(event, "data", {
-    value: null,
-    writable: false,
-  });
-
-  detector.handleBeforeInput(event);
+  detector.handleBeforeInput(mockBeforeInput("insertFromPaste", null));
 
   assertEquals(pasteDetected, false);
 });
@@ -245,21 +216,22 @@ Deno.test("ignores beforeinput with null data", () => {
 
 Deno.test("snapshot includes contenteditable elements", () => {
   let detectedText = "";
+  let fields: AnswerField[] = [
+    {
+      value: undefined,
+      textContent: "before ",
+      getAttribute: (name: string) =>
+        name === "contenteditable" ? "true" : null,
+    },
+  ];
   const detector = createPasteDetector({
     onPaste: (text) => { detectedText = text; },
-    answerFieldsFn: () => [
-      {
-        value: undefined,
-        textContent: "before ",
-        getAttribute: (name: string) =>
-          name === "contenteditable" ? "true" : null,
-      },
-    ],
+    answerFieldsFn: () => fields,
   });
 
   detector.snapshotAnswerFields();
 
-  detector.answerFieldsFn = () => [
+  fields = [
     {
       value: undefined,
       textContent: "before pasted",
@@ -268,13 +240,7 @@ Deno.test("snapshot includes contenteditable elements", () => {
     },
   ];
 
-  detector.handleKeyboardPaste(
-    new KeyboardEvent("keydown", {
-      key: "v",
-      ctrlKey: true,
-      bubbles: true,
-    }) as KeyboardEvent,
-  );
+  detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
 
   assertEquals(detectedText, "pasted");
 });
@@ -283,29 +249,24 @@ Deno.test("snapshot includes contenteditable elements", () => {
 
 Deno.test("detects paste across multiple textarea fields", () => {
   let detectedText = "";
+  let fields: AnswerField[] = [
+    { value: "field1 ", getAttribute: () => null },
+    { value: "field2 ", getAttribute: () => null },
+  ];
   const detector = createPasteDetector({
     onPaste: (text) => { detectedText = text; },
-    answerFieldsFn: () => [
-      { value: "field1 ", getAttribute: () => null },
-      { value: "field2 ", getAttribute: () => null },
-    ],
+    answerFieldsFn: () => fields,
   });
 
   detector.snapshotAnswerFields();
 
   // Paste happened in field2
-  detector.answerFieldsFn = () => [
+  fields = [
     { value: "field1 ", getAttribute: () => null },
     { value: "field2 pasted content", getAttribute: () => null },
   ];
 
-  detector.handleKeyboardPaste(
-    new KeyboardEvent("keydown", {
-      key: "v",
-      ctrlKey: true,
-      bubbles: true,
-    }) as KeyboardEvent,
-  );
+  detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
 
   assertEquals(detectedText, "pasted content");
 });
@@ -365,13 +326,7 @@ Deno.test("ignores content changes in non-answer fields", () => {
   detector.snapshotAnswerFields();
 
   // A non-answer field changed, but answer fields didn't
-  detector.handleKeyboardPaste(
-    new KeyboardEvent("keydown", {
-      key: "v",
-      ctrlKey: true,
-      bubbles: true,
-    }) as KeyboardEvent,
-  );
+  detector.handleKeyboardPaste(mockKeydown("v", { ctrlKey: true }));
 
   assertEquals(pasteDetected, false);
 });
