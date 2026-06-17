@@ -94,11 +94,11 @@ At copy time:
 
 * retrieve current selection
 * compute SHA-256 hash
-* store hash only
-* store selection length only
-* timestamp the event
+* store hash and selection length in heartbeat event buffer
+* **immediately send** the copy content to the server via `POST /api/clipboard` (hash + content + eventType: "copy")
+* track hash for paste matching (bounded Set, max 100 entries)
 
-Never store selected text.
+The copy content is stored server-side alongside paste content in a unified `clipboard_contents` table. This allows instructors to see what was copied and match it against pastes.
 
 ## Paste Detection
 
@@ -112,10 +112,9 @@ At paste time:
 
 * retrieve pasted text
 * compute SHA-256 hash
-* store hash only in the heartbeat event buffer
-* store pasted text length only
-* timestamp the event
-* **immediately send** the paste content to the server via `POST /api/paste` (hash + content)
+* store hash and pasted text length in heartbeat event buffer
+* match paste hash against previously recorded copy hashes (for `matchedCopyHash` field)
+* **immediately send** the paste content to the server via `POST /api/clipboard` (hash + content + eventType: "paste")
 
 The paste content is stored server-side linked by its SHA-256 hash and the student's session. This allows instructors to review what was pasted during exam review. The content is never sent in the heartbeat — it goes through a dedicated endpoint to ensure it is captured even if the heartbeat fails.
 

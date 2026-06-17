@@ -190,20 +190,26 @@ CREATE TABLE events (
 CREATE INDEX idx_events_session ON events(session_id);
 CREATE INDEX idx_events_type ON events(type);
 
--- Paste content store (most sensitive data — isolated for access control + retention)
--- NOTE: No FK on session_id — paste arrives immediately, may precede session creation (see vision.md D4)
+-- Clipboard content store — unified storage for copy and paste events
+-- NOTE: No FK on session_id — content arrives immediately, may precede session creation
+-- PRIMARY KEY is (hash, session_id, event_type) to allow:
+-- - Same hash for different sessions (cross-student tracking)
+-- - Same hash for copy and paste in the same session
 CREATE TABLE IF NOT EXISTS paste_contents (
-    hash            TEXT PRIMARY KEY,         -- SHA-256 of pasted text (dedup key)
-    session_id      TEXT NOT NULL REFERENCES sessions(session_id),
-    content         TEXT NOT NULL,            -- The actual pasted text
+    hash            TEXT NOT NULL,
+    session_id      TEXT NOT NULL,
+    content         TEXT NOT NULL,            -- The actual copied/pasted text
     length          INTEGER NOT NULL,         -- Character count
-    timestamp       INTEGER NOT NULL,         -- When the paste occurred
+    timestamp       INTEGER NOT NULL,         -- When the event occurred
     exam_id         TEXT NOT NULL,            -- Denormalized for query convenience
-    created_at      TEXT DEFAULT (datetime('now'))
+    event_type      TEXT NOT NULL DEFAULT 'paste',  -- 'copy' or 'paste'
+    created_at      TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (hash, session_id, event_type)
 );
 
 CREATE INDEX idx_paste_contents_session ON paste_contents(session_id);
 CREATE INDEX idx_paste_contents_exam ON paste_contents(exam_id);
+CREATE INDEX idx_paste_contents_type ON paste_contents(event_type);
 ```
 
 ---
@@ -225,34 +231,36 @@ CREATE INDEX idx_paste_contents_exam ON paste_contents(exam_id);
 4. Insert event rows from `events[]` array
 5. Return `200 OK` with `{ sessionId }` (client stores this for retry correlation)
 
-### 4.1b Paste Content Ingestion
+### 4.1b Clipboard Content Ingestion
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/paste` | Receive paste content from the client (called immediately on paste, not during heartbeat) |
+| `POST` | `/api/clipboard` | Receive clipboard content (copy or paste) from the client |
 
-**Request body**: `PasteContentRequest` (hash, content, length, sessionId, examId, timestamp)
+**Request body**: `ClipboardContentRequest` (hash, content, length, sessionId, examId, timestamp, eventType)
 
 **Server-side logic**:
-1. Validate payload
-2. If hash already exists → skip (idempotent, content is identical)
-3. If hash is new → insert into `paste_contents` table
-4. Return `200 OK`
+1. Validate payload (including eventType: "copy" | "paste")
+2. Insert into `paste_contents` table with event_type
+3. Return `200 OK`
 
-**Why a separate endpoint?** Paste content is the most sensitive data stored. Isolating it from heartbeats ensures: lost heartbeats don't lose paste evidence, independent retention policies, auditable access control.
+**Why a separate endpoint?** Clipboard content (both copy and paste) is stored separately from heartbeats to ensure: lost heartbeats don't lose content evidence, independent retention policies, auditable access control.
 
-### 4.1c Paste Content Retrieval (Dashboard)
+### 4.1c Clipboard Content Retrieval (Dashboard)
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/paste/{hash}` | Retrieve paste content by hash (requires dashboard auth) |
+| `GET` | `/api/clipboard/{hash}` | Retrieve all clipboard events for a hash |
 
-**Response**: `{ hash, content, length, sessionId, timestamp }`
+**Response**: `ClipboardContentRow[]` (array of rows with hash, eventType, sessionId, content, length, timestamp, examId)
 
 ### 4.2 Dashboard
 
 | Method | Path | Description |
 |---|---|---|
+| `GET` | `/dashboard` | Exam index — list all exams with student counts |
+| `GET` | `/dashboard/hashes` | Hash index — all clipboard hashes sorted by usage count |
+| `GET` | `/dashboard/hash/{hash}` | Hash detail — content preview + usage timeline for a specific hash |
 | `GET` | `/dashboard/{examUuid}` | Exam overview — table of all students |
 | `GET` | `/dashboard/{examUuid}/student/{sessionId}` | Per-student detailed view |
 | `POST` | `/auth/login` | Authenticate with password, set cookie |
@@ -349,7 +357,7 @@ CREATE INDEX idx_paste_contents_exam ON paste_contents(exam_id);
 | 5.8 | Client error reporting | Capture unhandled errors, include in next heartbeat |
 | 5.9 | Logging | Structured JSON logs for debugging |
 
-### Phase 6 — Moodle Integration & Deployment
+### Phase 6 — Moodle Integration & Deployment  COMPLETE (v0.5.0)
 
 **Goal**: Deploy alongside Moodle in SEB.
 
