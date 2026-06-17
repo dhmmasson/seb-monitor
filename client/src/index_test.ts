@@ -571,3 +571,121 @@ Deno.test("initialize without aceAdapterFactory does not crash", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+// ===== Paste Detector Integration Tests =====
+
+Deno.test("initialize with pasteDetectorFactory creates detector on start()", async () => {
+  let detectorAttached = false;
+  let detectorDetached = false;
+
+  const mockScript = createMockScript({
+    studentId: "John Doe",
+    examId: "exam-1",
+    serverUrl: "http://localhost:8000",
+  });
+
+  const mockPasteDetectorFactory = () => ({
+    attach: () => { detectorAttached = true; },
+    detach: () => { detectorDetached = true; },
+    handleBeforeInput: () => {},
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = () =>
+    Promise.resolve(
+      new Response(JSON.stringify({ sessionId: "test" }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+  try {
+    const result = initialize(
+      mockScript,
+      undefined,
+      undefined,
+      mockPasteDetectorFactory,
+    );
+    result.start();
+    await new Promise((r) => setTimeout(r, 50));
+
+    assertEquals(detectorAttached, true, "Paste detector should be attached on start()");
+
+    result.stop();
+    assertEquals(detectorDetached, true, "Paste detector should be detached on stop()");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("paste detector beforeinput callback triggers paste detection", async () => {
+  const mockDoc = createMockDocument();
+  const { getPasteContentCount, cleanup } = setupGlobals(mockDoc);
+
+  let capturedOnPaste: ((text: string) => void) | null = null;
+
+  const mockScript = createMockScript({
+    studentId: "John Doe",
+    examId: "exam-1",
+    serverUrl: "http://localhost:8000",
+  });
+
+  const mockPasteDetectorFactory = (opts: { onPaste: (text: string) => void }) => {
+    capturedOnPaste = opts.onPaste;
+    return {
+      attach: () => {},
+      detach: () => {},
+      handleBeforeInput: () => {},
+    };
+  };
+
+  try {
+    const result = initialize(
+      mockScript,
+      undefined,
+      undefined,
+      mockPasteDetectorFactory,
+    );
+    result.start();
+    // Wait for initial heartbeat
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Simulate a paste detected by the paste detector (beforeinput layer)
+    capturedOnPaste!("pasted via beforeinput");
+
+    // Wait for debounce + flush
+    await new Promise((r) => setTimeout(r, 600));
+
+    // Paste content should have been sent
+    assertEquals(getPasteContentCount(), 1);
+
+    result.stop();
+  } finally {
+    cleanup();
+  }
+});
+
+Deno.test("initialize without pasteDetectorFactory does not crash", async () => {
+  const mockScript = createMockScript({
+    studentId: "John Doe",
+    examId: "exam-1",
+    serverUrl: "http://localhost:8000",
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = () =>
+    Promise.resolve(
+      new Response(JSON.stringify({ sessionId: "test" }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+  try {
+    const result = initialize(mockScript);
+    result.start();
+    await new Promise((r) => setTimeout(r, 50));
+    result.stop();
+    // Should not throw
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
