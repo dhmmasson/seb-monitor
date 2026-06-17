@@ -585,8 +585,8 @@ Deno.test("initialize with pasteDetectorFactory creates detector on start()", as
   });
 
   const mockPasteDetectorFactory = () => ({
-    attach: () => { detectorAttached = true; },
-    detach: () => { detectorDetached = true; },
+    start: () => { detectorAttached = true; },
+    stop: () => { detectorDetached = true; },
     handleBeforeInput: () => {},
   });
 
@@ -632,8 +632,8 @@ Deno.test("paste detector beforeinput callback triggers paste detection", async 
   const mockPasteDetectorFactory = (opts: { onPaste: (text: string) => void }) => {
     capturedOnPaste = opts.onPaste;
     return {
-      attach: () => {},
-      detach: () => {},
+      start: () => {},
+      stop: () => {},
       handleBeforeInput: () => {},
     };
   };

@@ -32,6 +32,11 @@ import {
   type AceAdapter,
   type AceAdapterOptions,
 } from "./ace-adapter.ts";
+import {
+  createPasteDetector,
+  type PasteDetector,
+  type PasteDetectorOptions,
+} from "./paste-detector.ts";
 import type { FocusAccumulator, InputStats } from "../../shared/types.ts";
 
 /** Result of initialization */
@@ -118,6 +123,7 @@ export function initialize(
   scriptElement?: HTMLScriptElement,
   documentRef?: { querySelector: (s: string) => Element | null },
   aceAdapterFactory?: (options: AceAdapterOptions, doc?: Document) => AceAdapter,
+  pasteDetectorFactory?: (options: PasteDetectorOptions) => PasteDetector,
 ): InitResult {
   // Find the script element
   const doc = documentRef ??
@@ -165,6 +171,9 @@ export function initialize(
 
   // Ace Editor adapter (optional — hooks into Ace paste/change events)
   let aceAdapter: AceAdapter | null = null;
+
+  // Paste detector (optional — SEB-compatible paste detection via keyboard + beforeinput)
+  let pasteDetector: PasteDetector | null = null;
 
   // Sender
   const sender = createSender(serverUrl);
@@ -401,6 +410,35 @@ export function initialize(
         aceAdapter.attach();
       }
 
+      // Attach paste detector if factory provided (SEB-compatible paste detection)
+      if (pasteDetectorFactory) {
+        pasteDetector = pasteDetectorFactory({
+          onPaste: (text: string) => {
+            // Paste detector handler — mirrors handlePaste logic with direct text
+            sha256(text).then((hash) => {
+              collector.recordPaste();
+              lastInputWasPaste = true;
+              collector.record({
+                type: "paste",
+                timestamp: Date.now(),
+                hash,
+                length: text.length,
+                matchedCopyHash: null,
+              });
+              pendingPastes.push({
+                hash,
+                content: text,
+                length: text.length,
+                timestamp: Date.now(),
+              });
+              scheduleImmediateHeartbeat();
+            });
+          },
+          documentRef: doc as Document,
+        });
+        pasteDetector.start();
+      }
+
       // Send initial heartbeat immediately to register the student
       sendHeartbeat().catch(() => {});
 
@@ -437,6 +475,12 @@ export function initialize(
         aceAdapter = null;
       }
 
+      // Detach paste detector
+      if (pasteDetector) {
+        pasteDetector.stop();
+        pasteDetector = null;
+      }
+
       // Clear heartbeat timer
       if (heartbeatTimer !== null) {
         clearInterval(heartbeatTimer);
@@ -459,7 +503,12 @@ export function initialize(
  */
 function autoStart(): void {
   try {
-    const result = initialize(undefined, undefined, createAceAdapter);
+    const result = initialize(
+      undefined,
+      undefined,
+      createAceAdapter,
+      createPasteDetector,
+    );
     result.start();
     // Expose for external access (demo, debugging)
     if (typeof globalThis !== "undefined") {
