@@ -222,3 +222,65 @@ Deno.test("sendPasteContent throws after max retries", async () => {
     "Network error",
   );
 });
+
+// ===== Clipboard Content Sending Tests =====
+
+Deno.test("sendClipboardContent sends POST request to correct URL", async () => {
+  resetMocks();
+  mockFetchResponse = jsonResponse({ ok: true });
+
+  const sender = createSender("http://localhost:8000", mockFetch);
+  await sender.sendClipboardContent({
+    ...samplePasteRequest,
+    eventType: "paste",
+  });
+
+  assertEquals(lastFetchUrl, "http://localhost:8000/api/clipboard");
+  assertEquals(lastFetchOptions?.method, "POST");
+});
+
+Deno.test("sendClipboardContent includes eventType in payload", async () => {
+  resetMocks();
+  mockFetchResponse = jsonResponse({ ok: true });
+
+  const sender = createSender("http://localhost:8000", mockFetch);
+  const request = { ...samplePasteRequest, eventType: "copy" as const };
+  await sender.sendClipboardContent(request);
+
+  const body = JSON.parse(lastFetchOptions?.body as string);
+  assertEquals(body.eventType, "copy");
+  assertEquals(body.hash, "abc123");
+  assertEquals(body.content, "pasted text content");
+});
+
+Deno.test("sendClipboardContent works with paste eventType", async () => {
+  resetMocks();
+  mockFetchResponse = jsonResponse({ ok: true });
+
+  const sender = createSender("http://localhost:8000", mockFetch);
+  const request = { ...samplePasteRequest, eventType: "paste" as const };
+  await sender.sendClipboardContent(request);
+
+  const body = JSON.parse(lastFetchOptions?.body as string);
+  assertEquals(body.eventType, "paste");
+});
+
+Deno.test("sendClipboardContent retries on failure", async () => {
+  resetMocks();
+  mockFetchError = new Error("Network error");
+
+  const sender = createSender("http://localhost:8000", mockFetch, {
+    maxRetries: 2,
+  });
+
+  try {
+    await sender.sendClipboardContent({
+      ...samplePasteRequest,
+      eventType: "paste",
+    });
+  } catch {
+    // Expected to fail after retries
+  }
+
+  assertEquals(fetchCallCount, 3);
+});
