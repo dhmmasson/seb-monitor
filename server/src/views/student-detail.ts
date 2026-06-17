@@ -232,13 +232,15 @@ function renderEventsTable(
     const lengthCell = e.length !== null ? String(e.length) : "—";
 
     let contentCell = "";
-    if (e.type === "paste" && e.hash && pasteContents.has(e.hash)) {
-      const paste = pasteContents.get(e.hash)!;
+    if (e.hash && pasteContents.has(e.hash)) {
+      const content = pasteContents.get(e.hash)!;
       contentCell = `
         <span class="paste-expand" onclick="this.nextElementSibling.classList.toggle('show')">🔍 Show content</span>
-        <div class="paste-content">${escapeHtml(paste.content)}</div>`;
+        <div class="paste-content">${escapeHtml(content.content)}</div>`;
     } else if (e.type === "paste" && e.hash) {
       contentCell = `<span style="color: #999;">(not stored)</span>`;
+    } else if (e.type === "copy" && e.hash) {
+      contentCell = `<span style="color: #999;">(copy)</span>`;
     }
 
     timeline.push({
