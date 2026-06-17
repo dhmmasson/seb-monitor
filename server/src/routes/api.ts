@@ -7,7 +7,7 @@ import type { HeartbeatPayload, PasteContentRequest } from "../../../shared/type
 import { findOrCreate } from "../db/sessions.ts";
 import { insertHeartbeat } from "../db/heartbeats.ts";
 import { insertEvents } from "../db/events.ts";
-import { insertPasteContent, getPasteContent } from "../db/paste_contents.ts";
+import { insertPasteContent, getPasteContent, getAllClipboardContent } from "../db/paste_contents.ts";
 import { jsonCors, extractParam, CORS_HEADERS } from "./utils.ts";
 
 /**
@@ -43,6 +43,23 @@ function isValidPasteRequest(body: unknown): body is PasteContentRequest {
     typeof obj.sessionId === "string" &&
     typeof obj.examId === "string" &&
     typeof obj.timestamp === "number"
+  );
+}
+
+/**
+ * Validate a clipboard content request (copy or paste).
+ */
+function isValidClipboardRequest(body: unknown): body is PasteContentRequest & { eventType: "copy" | "paste" } {
+  if (typeof body !== "object" || body === null) return false;
+  const obj = body as Record<string, unknown>;
+  return (
+    typeof obj.hash === "string" &&
+    typeof obj.content === "string" &&
+    typeof obj.length === "number" &&
+    typeof obj.sessionId === "string" &&
+    typeof obj.examId === "string" &&
+    typeof obj.timestamp === "number" &&
+    (obj.eventType === "copy" || obj.eventType === "paste")
   );
 }
 
@@ -112,6 +129,33 @@ export function createHandler(db: DB): (req: Request) => Promise<Response> {
         return jsonCors({ error: "Paste content not found" }, 404);
       }
       return jsonCors(result);
+    }
+
+    // POST /api/clipboard — unified endpoint for copy and paste content
+    if (path === "/api/clipboard" && method === "POST") {
+      let body: unknown;
+      try {
+        body = await req.json();
+      } catch {
+        return jsonCors({ error: "Invalid JSON body" }, 400);
+      }
+
+      if (!isValidClipboardRequest(body)) {
+        return jsonCors({ error: "Invalid clipboard content request" }, 400);
+      }
+
+      insertPasteContent(db, body);
+      return jsonCors({ ok: true });
+    }
+
+    // GET /api/clipboard/:hash — returns all rows for a hash
+    const clipHash = extractParam(path, "/api/clipboard/:hash");
+    if (clipHash && method === "GET") {
+      const rows = getAllClipboardContent(db, clipHash);
+      if (rows.length === 0) {
+        return jsonCors({ error: "Clipboard content not found" }, 404);
+      }
+      return jsonCors(rows);
     }
 
     return jsonCors({ error: "Not found" }, 404);
