@@ -143,7 +143,7 @@ export function renderStudentDetail(
     : '<p class="empty-state">No heartbeats recorded yet.</p>';
 
   // Events table (includes heartbeats interleaved by timestamp)
-  const eventsHtml = renderEventsTable(events, pasteContents, heartbeats);
+  const eventsHtml = renderEventsTable(events, pasteContents, heartbeats, basePath);
 
   const content = `
     <h1 style="margin-bottom: 0.5rem;">👤 ${escapeHtml(studentId)}</h1>
@@ -217,6 +217,7 @@ function renderEventsTable(
   events: EventRow[],
   pasteContents: Map<string, PasteContentRow>,
   heartbeats: HeartbeatRow[],
+  basePath = "",
 ): string {
   // Build unified timeline: events + heartbeats, sorted by timestamp
   type TimelineEntry = { timestamp: number; html: string };
@@ -227,7 +228,7 @@ function renderEventsTable(
     const isUnmatched = e.type === "paste" && e.matchedCopyHash === null;
     const rowClass = isUnmatched ? ' class="highlight-unmatched"' : "";
     const hashCell = e.hash
-      ? `<code>${escapeHtml(e.hash.substring(0, 12))}…</code>`
+      ? `<a href="${basePath}/dashboard/hash/${escapeHtml(e.hash)}"><code>${escapeHtml(e.hash.substring(0, 12))}…</code></a>`
       : "—";
     const lengthCell = e.length !== null ? String(e.length) : "—";
 

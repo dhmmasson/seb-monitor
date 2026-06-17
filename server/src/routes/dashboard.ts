@@ -45,6 +45,7 @@ export function createDashboardHandler(
   basePath = "",
 ): (req: Request) => Promise<Response> {
   return async (req: Request): Promise<Response> => {
+    try {
     const url = new URL(req.url);
     const path = url.pathname;
 
@@ -102,5 +103,12 @@ export function createDashboardHandler(
     }
 
     return new Response("Not found", { status: 404 });
+    } catch (err) {
+      console.error("[Dashboard] Unhandled error:", err);
+      return new Response(
+        `<h1>Internal Server Error</h1><pre>${String(err)}</pre>`,
+        { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } },
+      );
+    }
   };
 }

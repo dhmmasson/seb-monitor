@@ -536,13 +536,21 @@ function autoStart(): void {
 }
 
 // Auto-start when loaded as an IIFE in a browser environment
+// Global singleton guard — prevents duplicate listeners if the script is
+// injected more than once (e.g. Moodle dynamic question loading).
 if (
   typeof document !== "undefined" &&
   typeof document.addEventListener === "function"
 ) {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", autoStart);
+  const _g = globalThis as unknown as Record<string, unknown>;
+  if (_g.__sebMonitorStarted) {
+    console.warn("[SEB Monitor] Already running — skipping duplicate initialization.");
   } else {
-    autoStart();
+    _g.__sebMonitorStarted = true;
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", autoStart);
+    } else {
+      autoStart();
+    }
   }
 }

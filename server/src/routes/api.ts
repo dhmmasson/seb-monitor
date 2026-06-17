@@ -70,6 +70,7 @@ function isValidClipboardRequest(body: unknown): body is PasteContentRequest & {
  */
 export function createHandler(db: DB): (req: Request) => Promise<Response> {
   return async (req: Request): Promise<Response> => {
+    try {
     const url = new URL(req.url);
     const path = url.pathname;
     const method = req.method;
@@ -159,5 +160,11 @@ export function createHandler(db: DB): (req: Request) => Promise<Response> {
     }
 
     return jsonCors({ error: "Not found" }, 404);
+    } catch (err) {
+      // Catch-all: always return CORS headers so browser sees the error,
+      // not a generic CORS block.
+      console.error("[API] Unhandled error:", err);
+      return jsonCors({ error: "Internal server error" }, 500);
+    }
   };
 }
