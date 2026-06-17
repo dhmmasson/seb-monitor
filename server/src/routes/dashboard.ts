@@ -13,8 +13,11 @@ import { computeExamSummary } from "../services/metrics.ts";
 import { renderExamList } from "../views/exam-list.ts";
 import { renderStudentDetail } from "../views/student-detail.ts";
 import { renderExamIndex } from "../views/exam-index.ts";
+import { renderHashList } from "../views/hash-list.ts";
+import { renderHashDetail } from "../views/hash-detail.ts";
 import { html, redirect, extractParam } from "./utils.ts";
 import { decodeExamId } from "./url-ids.ts";
+import { getHashUsageStats, getAllClipboardContent } from "../db/paste_contents.ts";
 
 const COOKIE_NAME = "seb_auth";
 
@@ -59,6 +62,19 @@ export function createDashboardHandler(
     // GET /dashboard — exam index showing all exams
     if (path === "/dashboard" || path === "/dashboard/") {
       return html(renderExamIndex(db, basePath));
+    }
+
+    // GET /dashboard/hashes — hash index (must be before :examId to avoid matching)
+    if (path === "/dashboard/hashes" || path === "/dashboard/hashes/") {
+      const stats = getHashUsageStats(db);
+      return html(renderHashList(stats, basePath));
+    }
+
+    // GET /dashboard/hash/:hash — hash detail page
+    const hashPath = extractParam(path, "/dashboard/hash/:hash");
+    if (hashPath && !path.includes("/student/")) {
+      const rows = getAllClipboardContent(db, hashPath);
+      return html(renderHashDetail(hashPath, rows, basePath));
     }
 
     // GET /dashboard/:examId — exam overview
