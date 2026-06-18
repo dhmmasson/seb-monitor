@@ -284,3 +284,68 @@ Deno.test("sendClipboardContent retries on failure", async () => {
 
   assertEquals(fetchCallCount, 3);
 });
+
+// ===== Input Snapshot Sending Tests =====
+
+Deno.test("sendInputSnapshot sends POST request to correct URL", async () => {
+  resetMocks();
+  mockFetchResponse = jsonResponse({ ok: true });
+
+  const sender = createSender("http://localhost:8000", mockFetch);
+  await sender.sendInputSnapshot({
+    hash: "snap123",
+    content: "student answer text",
+    length: 18,
+    sessionId: "session-1",
+    examId: "exam-1",
+    timestamp: 1000,
+  });
+
+  assertEquals(lastFetchUrl, "http://localhost:8000/api/input-snapshot");
+  assertEquals(lastFetchOptions?.method, "POST");
+});
+
+Deno.test("sendInputSnapshot sends JSON payload", async () => {
+  resetMocks();
+  mockFetchResponse = jsonResponse({ ok: true });
+
+  const sender = createSender("http://localhost:8000", mockFetch);
+  const request = {
+    hash: "snap456",
+    content: "full answer here",
+    length: 16,
+    sessionId: "session-2",
+    examId: "exam-2",
+    timestamp: 2000,
+  };
+  await sender.sendInputSnapshot(request);
+
+  assertEquals(lastFetchOptions?.headers, {
+    "Content-Type": "application/json",
+  });
+  assertEquals(JSON.parse(lastFetchOptions?.body as string), request);
+});
+
+Deno.test("sendInputSnapshot retries on failure", async () => {
+  resetMocks();
+  mockFetchError = new Error("Network error");
+
+  const sender = createSender("http://localhost:8000", mockFetch, {
+    maxRetries: 2,
+  });
+
+  try {
+    await sender.sendInputSnapshot({
+      hash: "snap789",
+      content: "test content",
+      length: 12,
+      sessionId: "session-3",
+      examId: "exam-3",
+      timestamp: 3000,
+    });
+  } catch {
+    // Expected to fail after retries
+  }
+
+  assertEquals(fetchCallCount, 3);
+});

@@ -303,6 +303,7 @@ function createMockDocument() {
   const listeners: Record<string, ((e: Event) => void)[]> = {};
   return {
     querySelector: () => null,
+    querySelectorAll: () => [],
     visibilityState: "visible" as DocumentVisibilityState,
     addEventListener: (type: string, handler: (e: Event) => void) => {
       if (!listeners[type]) listeners[type] = [];
@@ -342,7 +343,7 @@ function setupGlobals(mockDoc: ReturnType<typeof createMockDocument>) {
       : url instanceof URL
       ? url.href
       : url.url;
-    if (urlStr.includes("/api/paste") || urlStr.includes("/api/clipboard")) {
+    if (urlStr.includes("/api/paste") || urlStr.includes("/api/clipboard") || urlStr.includes("/api/input-snapshot")) {
       pasteContentCount++;
     } else {
       heartbeatCount++;

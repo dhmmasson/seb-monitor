@@ -236,3 +236,49 @@ Deno.test("renderStudentDetail: handles session with no data", () => {
     closeTestDb(db);
   }
 });
+
+Deno.test("renderStudentDetail: shows expandable input content for heartbeats with snapshots", () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "Alice", "exam-1");
+
+    // Create a heartbeat with an input content hash
+    const heartbeatPayload = makeHeartbeat({
+      inputContentHash: "snap-hash-123",
+    });
+    insertHeartbeat(db, session.sessionId, heartbeatPayload);
+
+    // Insert the corresponding input snapshot
+    const stmt = db.prepareQuery(
+      `INSERT INTO input_snapshots (hash, session_id, content, length, timestamp, exam_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    stmt.execute(["snap-hash-123", session.sessionId, "This is the student's answer text", 31, heartbeatPayload.timestamp, "exam-1"]);
+    stmt.finalize();
+
+    const html = renderStudentDetail(db, "exam-1", session.sessionId);
+    assertEquals(html.includes("Show content"), true, "should include expand button");
+    assertEquals(html.includes("This is the student's answer text"), true, "should include snapshot content");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("renderStudentDetail: shows hash prefix for heartbeats with missing snapshots", () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "Alice", "exam-1");
+
+    // Create a heartbeat with a hash but no snapshot content
+    insertHeartbeat(db, session.sessionId, makeHeartbeat({
+      inputContentHash: "orphan-hash-abcdef",
+    }));
+
+    const html = renderStudentDetail(db, "exam-1", session.sessionId);
+    // Should show the truncated hash, not the expand button
+    assertEquals(html.includes("orphan-h"), true, "should show truncated hash");
+    assertEquals(html.includes("Show content"), false, "should NOT show expand button for missing snapshot");
+  } finally {
+    closeTestDb(db);
+  }
+});

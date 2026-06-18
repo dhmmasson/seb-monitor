@@ -558,3 +558,236 @@ Deno.test("POST /api/clipboard: works before any heartbeat (no FK)", async () =>
     closeTestDb(db);
   }
 });
+
+// ===== POST /api/input-snapshot Tests =====
+
+Deno.test("POST /api/input-snapshot: stores input content snapshot", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+
+    // Create session
+    const hbResp = await sendRequest(app, "/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeHeartbeatPayload()),
+    });
+    const { sessionId } = await hbResp.json();
+
+    // Send input snapshot
+    const resp = await sendRequest(app, "/api/input-snapshot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hash: "snap-abc123",
+        content: "The student wrote this answer...",
+        length: 31,
+        sessionId,
+        examId: "exam-1",
+        timestamp: Date.now(),
+      }),
+    });
+    assertEquals(resp.status, 200);
+
+    // Verify stored
+    const stmt = db.prepareQuery(
+      "SELECT content, length FROM input_snapshots WHERE hash = ?",
+    );
+    try {
+      const rows = [...stmt.all(["snap-abc123"])];
+      assertEquals(rows.length, 1);
+      assertEquals(rows[0][0], "The student wrote this answer...");
+      assertEquals(rows[0][1], 31);
+    } finally {
+      stmt.finalize();
+    }
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("POST /api/input-snapshot: idempotent for same hash+session", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+
+    const hbResp = await sendRequest(app, "/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeHeartbeatPayload()),
+    });
+    const { sessionId } = await hbResp.json();
+
+    const body = JSON.stringify({
+      hash: "snap-idem",
+      content: "First version",
+      length: 13,
+      sessionId,
+      examId: "exam-1",
+      timestamp: Date.now(),
+    });
+
+    await sendRequest(app, "/api/input-snapshot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+
+    // Send again with different content but same hash+session
+    const resp2 = await sendRequest(app, "/api/input-snapshot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hash: "snap-idem",
+        content: "Second version",
+        length: 14,
+        sessionId,
+        examId: "exam-1",
+        timestamp: Date.now(),
+      }),
+    });
+    assertEquals(resp2.status, 200);
+
+    // Should still have only one row (INSERT OR IGNORE)
+    const stmt = db.prepareQuery(
+      "SELECT content FROM input_snapshots WHERE hash = ?",
+    );
+    try {
+      const rows = [...stmt.all(["snap-idem"])];
+      assertEquals(rows.length, 1);
+      assertEquals(rows[0][0], "First version", "first insert should be kept");
+    } finally {
+      stmt.finalize();
+    }
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("POST /api/input-snapshot: returns 400 for invalid payload", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+    const resp = await sendRequest(app, "/api/input-snapshot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invalid: "payload" }),
+    });
+    assertEquals(resp.status, 400);
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("POST /api/heartbeat: stores inputContentHash in heartbeat", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+    const resp = await sendRequest(app, "/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeHeartbeatPayload({
+        inputContentHash: "abc123def456",
+      })),
+    });
+    assertEquals(resp.status, 200);
+    const body = await resp.json();
+
+    // Verify heartbeat has input_content_hash
+    const stmt = db.prepareQuery(
+      "SELECT input_content_hash FROM heartbeats WHERE session_id = ?",
+    );
+    try {
+      const rows = [...stmt.all([body.sessionId])];
+      assertEquals(rows.length, 1);
+      assertEquals(rows[0][0], "abc123def456");
+    } finally {
+      stmt.finalize();
+    }
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("POST /api/heartbeat: stores null inputContentHash when omitted", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+    const resp = await sendRequest(app, "/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeHeartbeatPayload()),
+    });
+    assertEquals(resp.status, 200);
+    const body = await resp.json();
+
+    const stmt = db.prepareQuery(
+      "SELECT input_content_hash FROM heartbeats WHERE session_id = ?",
+    );
+    try {
+      const rows = [...stmt.all([body.sessionId])];
+      assertEquals(rows.length, 1);
+      assertEquals(rows[0][0], null);
+    } finally {
+      stmt.finalize();
+    }
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("GET /api/input-snapshot/:hash/:sessionId: retrieves snapshot", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+
+    // Create session
+    const hbResp = await sendRequest(app, "/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(makeHeartbeatPayload()),
+    });
+    const { sessionId } = await hbResp.json();
+
+    // Store snapshot
+    await sendRequest(app, "/api/input-snapshot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hash: "snap-get-test",
+        content: "Student answer content",
+        length: 21,
+        sessionId,
+        examId: "exam-1",
+        timestamp: 5000,
+      }),
+    });
+
+    // GET should return the snapshot
+    const resp = await sendRequest(
+      app,
+      `/api/input-snapshot/snap-get-test/${sessionId}`,
+    );
+    assertEquals(resp.status, 200);
+    const result = await resp.json();
+    assertEquals(result.content, "Student answer content");
+    assertEquals(result.hash, "snap-get-test");
+    assertEquals(result.sessionId, sessionId);
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("GET /api/input-snapshot/:hash/:sessionId: returns 404 for missing", async () => {
+  const db = createTestDb();
+  try {
+    const app = createHandler(db);
+    const resp = await sendRequest(
+      app,
+      "/api/input-snapshot/nonexistent/some-session",
+    );
+    assertEquals(resp.status, 404);
+  } finally {
+    closeTestDb(db);
+  }
+});

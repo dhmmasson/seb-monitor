@@ -125,6 +125,7 @@ Deno.test("schema: heartbeats table has correct columns", () => {
       "ctrl_count",
       "alt_count",
       "shift_count",
+      "input_content_hash",
       "created_at",
     ]);
   } finally {

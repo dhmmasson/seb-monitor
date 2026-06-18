@@ -247,3 +247,39 @@ Deno.test("reset resets focus, input, and key accumulators", () => {
   assertEquals(keys.altCount, 0);
   assertEquals(keys.shiftCount, 0);
 });
+
+Deno.test("build includes inputContentHash when provided", () => {
+  const { focus, input, keys } = createMockAccumulators();
+  const collector = createMockCollector();
+  const builder = createHeartbeatBuilder(
+    "student1",
+    "exam1",
+    "question1",
+    focus,
+    input,
+    keys,
+    collector,
+  );
+
+  const payload = builder.build("abc123hash");
+
+  assertEquals(payload.inputContentHash, "abc123hash");
+});
+
+Deno.test("build omits inputContentHash when not provided", () => {
+  const { focus, input, keys } = createMockAccumulators();
+  const collector = createMockCollector();
+  const builder = createHeartbeatBuilder(
+    "student1",
+    "exam1",
+    "question1",
+    focus,
+    input,
+    keys,
+    collector,
+  );
+
+  const payload = builder.build();
+
+  assertEquals(payload.inputContentHash, undefined);
+});
