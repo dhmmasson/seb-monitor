@@ -72,6 +72,52 @@ Deno.test("extractPastedText handles multiline content", () => {
   );
 });
 
+// ===== fast-diff edge cases =====
+
+Deno.test("extractPastedText handles paste over selection (replace)", () => {
+  // User selects "world" and pastes "beautiful world"
+  assertEquals(
+    extractPastedText("hello world", "hello beautiful world"),
+    "beautiful ",
+  );
+});
+
+Deno.test("extractPastedText handles paste replacing selected text", () => {
+  // User selects "world" and pastes "universe"
+  assertEquals(
+    extractPastedText("hello world", "hello universe"),
+    "universe",
+  );
+});
+
+Deno.test("extractPastedText handles middle insert with repeating text", () => {
+  // Before: "abab", paste "XY" after first "a" → "aXYbab"
+  assertEquals(extractPastedText("abab", "aXYbab"), "XY");
+});
+
+Deno.test("extractPastedText handles paste replacing selected text in middle", () => {
+  // Before: "aaaXXXaaa", select "XXX", paste "YYY"
+  assertEquals(extractPastedText("aaaXXXaaa", "aaaYYYaaa"), "YYY");
+});
+
+Deno.test("extractPastedText handles unicode/emoji paste", () => {
+  assertEquals(extractPastedText("hello 🐶", "hello 🐶🎉"), "🎉");
+});
+
+Deno.test("extractPastedText handles multiline paste into middle", () => {
+  assertEquals(
+    extractPastedText("line1\nline3", "line1\nline2\nline3"),
+    "line2\n",
+  );
+});
+
+Deno.test("extractPastedText handles large paste replacing small selection", () => {
+  assertEquals(
+    extractPastedText("x", "a long pasted paragraph of text"),
+    "a long pasted paragraph of text",
+  );
+});
+
 // ===== createPasteDetector Tests =====
 
 Deno.test("createPasteDetector returns detector with start/stop methods", () => {
