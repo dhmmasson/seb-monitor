@@ -1,6 +1,7 @@
 {
     "imports": {
-        "@std/assert": "jsr:@std/assert@1"
+        "@std/assert": "jsr:@std/assert@1",
+        "fast-diff": "npm:fast-diff"
     },
     "compilerOptions": {
         "lib": [

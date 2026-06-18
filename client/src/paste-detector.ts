@@ -17,6 +17,8 @@
  * @module paste-detector
  */
 
+import diff from "fast-diff";
+
 /** Answer field element interface (works with both textarea and contenteditable) */
 export interface AnswerField {
   value?: string;
@@ -57,13 +59,20 @@ function getFieldText(field: AnswerField): string {
 }
 
 /**
- * Extract the pasted text by diffing before/after content.
- * Returns the text that was inserted, or empty string if no paste detected.
+ * Extract the pasted text by diffing before/after content using fast-diff.
+ * Returns the inserted text, or empty string if no paste detected.
  *
- * Detects three paste positions:
- * - Append (after starts with before) — returns the suffix
- * - Prepend (after ends with before) — returns the prefix
- * - Insert (before is a substring) — returns the text inserted around it
+ * Uses the Myers O(ND) diff algorithm (via fast-diff) with semantic cleanup
+ * to produce a clean edit script, then concatenates all INSERT segments.
+ * Semantic cleanup ensures that DELETE and INSERT segments are cleanly
+ * separated (no interleaved EQUAL characters from character-level alignment).
+ *
+ * This correctly handles:
+ * - Append at cursor (most common)
+ * - Prepend at beginning
+ * - Insert in the middle of existing text
+ * - Paste over selected text (DELETE + INSERT in the diff)
+ * - Repeating text patterns (where substring matching fails)
  *
  * Returns empty string if content was deleted or unchanged.
  *
@@ -73,28 +82,21 @@ export function extractPastedText(
   before: string,
   after: string,
 ): string {
-  if (after.length <= before.length) return "";
+  if (after.length < before.length) return "";
 
-  // Case 1: Appended at end (most common — Ctrl+V at cursor)
-  if (after.startsWith(before)) {
-    return after.slice(before.length);
-  }
+  // Run Myers diff with semantic cleanup (4th arg = true).
+  // Cleanup merges adjacent equalities and cleanly separates DELETE/INSERT
+  // blocks, preventing character-level interleaving that would fragment
+  // the pasted text across multiple INSERT tuples.
+  // Returns array of [type, text] tuples: -1=DELETE, 0=EQUAL, 1=INSERT
+  const diffs = diff(before, after, undefined, true);
 
-  // Case 2: Prepended at beginning
-  if (after.endsWith(before)) {
-    return after.slice(0, after.length - before.length);
-  }
-
-  // Case 3: Inserted in the middle (before content split across after)
-  const idx = after.indexOf(before);
-  if (idx > 0 && idx + before.length < after.length) {
-    const prefix = after.slice(0, idx);
-    const suffix = after.slice(idx + before.length);
-    return prefix + suffix;
-  }
-
-  // Cannot determine paste location — return full new content
-  return after;
+  // Extract only INSERT segments — these are the pasted text.
+  // DELETE segments represent selected text being replaced, not pasted content.
+  return diffs
+    .filter(([type]) => type === diff.INSERT)
+    .map(([, text]) => text)
+    .join("");
 }
 
 /** Paste detector interface */
