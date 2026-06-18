@@ -1,3 +1,30 @@
+## v0.6.0 (2026-06-18)
+
+### Feat
+
+- **dashboard**: show copy content in student detail view
+- **dashboard**: add hash list and hash detail views with routes
+- **api**: add unified /api/clipboard endpoint for copy and paste content
+- **client**: use unified clipboard capture for copy and paste events
+- **client**: add sendClipboardContent method to sender
+- **client**: add copy hash tracking and paste matching to collector
+- **db**: add event_type column and clipboard query functions
+- **client**: integrate paste detector into initialize()
+- **client**: implement paste detector with keyboard and beforeinput layers
+- **client**: integrate Ace adapter into initialize (makes tests pass)
+- **client**: implement Ace Editor adapter (makes tests pass)
+
+### Fix
+
+- **db**: add event_type column migration for existing databases
+- **client**: global singleton guard prevents duplicate event listeners
+- **client**: retry keyboard paste detection for SEB async clipboard injection
+- **client**: pass aceAdapterFactory in autoStart for production use
+
+### Refactor
+
+- **client**: extract shared recordPasteContent function
+
 ## v0.5.0 (2026-06-17)
 
 ### Feat
