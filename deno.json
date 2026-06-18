@@ -11,5 +11,5 @@
     "@std/assert": "jsr:@std/assert@1",
     "fast-diff": "npm:fast-diff"
   },
-  "version": "0.7.0"
+  "version": "0.8.0"
 }

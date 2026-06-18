@@ -1,3 +1,18 @@
+## v0.8.0 (2026-06-18)
+
+### Feat
+
+- **client**: replace extractPastedText with fast-diff (makes tests pass)
+
+### Fix
+
+- **docker**: copy package.json and install npm deps before client build
+- **client**: resolve type-check errors in test mocks and type annotations
+
+### Refactor
+
+- **client**: extract INSERT constant in paste-detector
+
 ## v0.7.0 (2026-06-18)
 
 ### Feat
