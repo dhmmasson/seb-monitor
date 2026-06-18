@@ -47,6 +47,11 @@ function createMockCollector() {
     getCopyCount: () => 1,
     getPasteCount: () => 2,
     clearEvents: () => {},
+    record: () => {},
+    recordCopy: () => {},
+    recordPaste: () => {},
+    recordCopyHash: () => {},
+    matchPasteHash: () => null,
   };
 }
 
@@ -216,6 +221,11 @@ Deno.test("reset resets focus, input, and key accumulators", () => {
     getCopyCount: () => 3,
     getPasteCount: () => 2,
     clearEvents: () => {},
+    record: () => {},
+    recordCopy: () => {},
+    recordPaste: () => {},
+    recordCopyHash: (_hash: string) => {},
+    matchPasteHash: (_hash: string) => null,
   };
 
   const builder = createHeartbeatBuilder(

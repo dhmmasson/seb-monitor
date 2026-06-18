@@ -628,6 +628,9 @@ Deno.test("initialize with pasteDetectorFactory creates detector on start()", as
       detectorDetached = true;
     },
     handleBeforeInput: () => {},
+    snapshotAnswerFields: () => {},
+    handleKeyboardPaste: () => false,
+    answerFieldsFn: () => [],
   });
 
   const originalFetch = globalThis.fetch;
@@ -685,6 +688,9 @@ Deno.test("paste detector beforeinput callback triggers paste detection", async 
       start: () => {},
       stop: () => {},
       handleBeforeInput: () => {},
+      snapshotAnswerFields: () => {},
+      handleKeyboardPaste: () => false,
+      answerFieldsFn: () => [],
     };
   };
 

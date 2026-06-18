@@ -147,7 +147,7 @@ Deno.test("adapter calls onPaste when Ace editor fires paste event", () => {
 Deno.test("adapter calls onChange with insert delta", () => {
   const mockEditor = createMockAceEditor();
   const mockContainer = createMockAceContainer(mockEditor);
-  let changeDelta: { action: string; text: string } | null = null;
+  let changeDelta: { action: "insert" | "remove"; text: string } | null = null;
 
   const mockDoc = {
     querySelectorAll: (selector: string) => {
@@ -170,14 +170,15 @@ Deno.test("adapter calls onChange with insert delta", () => {
   });
 
   assertExists(changeDelta);
-  assertEquals(changeDelta!.action, "insert");
-  assertEquals(changeDelta!.text, "new code here");
+  const d1 = changeDelta as { action: string; text: string };
+  assertEquals(d1.action, "insert");
+  assertEquals(d1.text, "new code here");
 });
 
 Deno.test("adapter calls onChange with remove delta", () => {
   const mockEditor = createMockAceEditor();
   const mockContainer = createMockAceContainer(mockEditor);
-  let changeDelta: { action: string; text: string } | null = null;
+  let changeDelta: { action: "insert" | "remove"; text: string } | null = null;
 
   const mockDoc = {
     querySelectorAll: (selector: string) => {
@@ -200,14 +201,15 @@ Deno.test("adapter calls onChange with remove delta", () => {
   });
 
   assertExists(changeDelta);
-  assertEquals(changeDelta!.action, "remove");
-  assertEquals(changeDelta!.text, "deleted text");
+  const d2 = changeDelta as { action: string; text: string };
+  assertEquals(d2.action, "remove");
+  assertEquals(d2.text, "deleted text");
 });
 
 Deno.test("adapter handles multi-line changes by joining lines", () => {
   const mockEditor = createMockAceEditor();
   const mockContainer = createMockAceContainer(mockEditor);
-  let changeDelta: { action: string; text: string } | null = null;
+  let changeDelta: { action: "insert" | "remove"; text: string } | null = null;
 
   const mockDoc = {
     querySelectorAll: (selector: string) => {
@@ -235,7 +237,7 @@ Deno.test("adapter handles multi-line changes by joining lines", () => {
 Deno.test("adapter handles change events without lines property", () => {
   const mockEditor = createMockAceEditor();
   const mockContainer = createMockAceContainer(mockEditor);
-  let changeDelta: { action: string; text: string } | null = null;
+  let changeDelta: { action: "insert" | "remove"; text: string } | null = null;
 
   const mockDoc = {
     querySelectorAll: (selector: string) => {
