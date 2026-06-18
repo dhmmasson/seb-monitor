@@ -18,8 +18,9 @@ export function insertHeartbeat(
       focused_time_ms, unfocused_time_ms, blur_count,
       typed_chars, pasted_chars, deleted_chars, current_length,
       copy_count, paste_count,
-      key_down_count, ctrl_count, alt_count, shift_count
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      key_down_count, ctrl_count, alt_count, shift_count,
+      input_content_hash
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   try {
     stmt.execute([
@@ -39,6 +40,7 @@ export function insertHeartbeat(
       payload.keys.ctrlCount,
       payload.keys.altCount,
       payload.keys.shiftCount,
+      payload.inputContentHash ?? null,
     ]);
   } finally {
     stmt.finalize();

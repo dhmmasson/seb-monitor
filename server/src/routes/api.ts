@@ -3,11 +3,12 @@
  * Uses Deno's built-in Deno.serve() — zero external HTTP dependencies.
  */
 import type { DB } from "sqlite";
-import type { HeartbeatPayload, PasteContentRequest } from "../../../shared/types.ts";
+import type { HeartbeatPayload, InputSnapshotRequest, PasteContentRequest } from "../../../shared/types.ts";
 import { findOrCreate } from "../db/sessions.ts";
 import { insertHeartbeat } from "../db/heartbeats.ts";
 import { insertEvents } from "../db/events.ts";
 import { insertPasteContent, getPasteContent, getAllClipboardContent } from "../db/paste_contents.ts";
+import { insertInputSnapshot, getInputSnapshot } from "../db/input_snapshots.ts";
 import { jsonCors, extractParam, CORS_HEADERS } from "./utils.ts";
 
 /**
@@ -34,6 +35,22 @@ function isValidHeartbeatPayload(body: unknown): body is HeartbeatPayload {
  * Validate a paste content request.
  */
 function isValidPasteRequest(body: unknown): body is PasteContentRequest {
+  if (typeof body !== "object" || body === null) return false;
+  const obj = body as Record<string, unknown>;
+  return (
+    typeof obj.hash === "string" &&
+    typeof obj.content === "string" &&
+    typeof obj.length === "number" &&
+    typeof obj.sessionId === "string" &&
+    typeof obj.examId === "string" &&
+    typeof obj.timestamp === "number"
+  );
+}
+
+/**
+ * Validate an input snapshot request.
+ */
+function isValidInputSnapshotRequest(body: unknown): body is InputSnapshotRequest {
   if (typeof body !== "object" || body === null) return false;
   const obj = body as Record<string, unknown>;
   return (
@@ -157,6 +174,36 @@ export function createHandler(db: DB): (req: Request) => Promise<Response> {
         return jsonCors({ error: "Clipboard content not found" }, 404);
       }
       return jsonCors(rows);
+    }
+
+    // POST /api/input-snapshot — store input content snapshot at heartbeat time
+    if (path === "/api/input-snapshot" && method === "POST") {
+      let body: unknown;
+      try {
+        body = await req.json();
+      } catch {
+        return jsonCors({ error: "Invalid JSON body" }, 400);
+      }
+
+      if (!isValidInputSnapshotRequest(body)) {
+        return jsonCors({ error: "Invalid input snapshot request" }, 400);
+      }
+
+      insertInputSnapshot(db, body);
+      return jsonCors({ ok: true });
+    }
+
+    // GET /api/input-snapshot/:hash/:sessionId — retrieve a specific snapshot
+    if (extractParam(path, "/api/input-snapshot/:hash/:sessionId") && method === "GET") {
+      const hash = extractParam(path, "/api/input-snapshot/:hash/:sessionId", "hash");
+      const sid = extractParam(path, "/api/input-snapshot/:hash/:sessionId", "sessionId");
+      if (hash && sid) {
+        const result = getInputSnapshot(db, decodeURIComponent(hash), decodeURIComponent(sid));
+        if (!result) {
+          return jsonCors({ error: "Input snapshot not found" }, 404);
+        }
+        return jsonCors(result);
+      }
     }
 
     return jsonCors({ error: "Not found" }, 404);

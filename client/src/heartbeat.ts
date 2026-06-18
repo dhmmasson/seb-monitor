@@ -16,8 +16,8 @@ import { resetAccumulators } from "./accumulator.ts";
 
 /** Heartbeat builder interface */
 export interface HeartbeatBuilder {
-  /** Build a heartbeat payload from current state */
-  build(): HeartbeatPayload;
+  /** Build a heartbeat payload from current state, optionally with input content hash */
+  build(inputContentHash?: string): HeartbeatPayload;
   /** Reset accumulators and clear event buffer after successful send */
   reset(): void;
 }
@@ -47,8 +47,9 @@ export function createHeartbeatBuilder(
     /**
      * Build a heartbeat payload from current accumulator and collector state.
      * Uses spread operators to create shallow copies of accumulators.
+     * Optionally includes the input content hash from the current answer fields.
      */
-    build(): HeartbeatPayload {
+    build(inputContentHash?: string): HeartbeatPayload {
       return {
         studentId,
         examId,
@@ -61,6 +62,7 @@ export function createHeartbeatBuilder(
         copyCount: collector.getCopyCount(),
         pasteCount: collector.getPasteCount(),
         events: collector.getEvents(),
+        ...(inputContentHash ? { inputContentHash } : {}),
       };
     },
 

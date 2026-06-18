@@ -7,6 +7,7 @@
 
 import type {
   HeartbeatPayload,
+  InputSnapshotRequest,
   PasteContentRequest,
 } from "../../shared/types.ts";
 
@@ -24,6 +25,8 @@ export interface Sender {
   sendPasteContent(request: PasteContentRequest): Promise<void>;
   /** Send clipboard content (copy or paste) to the unified endpoint */
   sendClipboardContent(request: PasteContentRequest & { eventType: "copy" | "paste" }): Promise<void>;
+  /** Send input content snapshot (heartbeat-time capture of answer fields) */
+  sendInputSnapshot(request: InputSnapshotRequest): Promise<void>;
 }
 
 /** Fetch function type for dependency injection */
@@ -94,6 +97,11 @@ export function createSender(
     /** Send clipboard content (copy or paste) to /api/clipboard endpoint */
     async sendClipboardContent(request: PasteContentRequest & { eventType: "copy" | "paste" }): Promise<void> {
       await sendWithRetry(`${baseUrl}/api/clipboard`, request);
+    },
+
+    /** Send input content snapshot to /api/input-snapshot endpoint */
+    async sendInputSnapshot(request: InputSnapshotRequest): Promise<void> {
+      await sendWithRetry(`${baseUrl}/api/input-snapshot`, request);
     },
   };
 }

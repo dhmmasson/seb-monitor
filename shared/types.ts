@@ -63,6 +63,8 @@ export interface HeartbeatPayload {
   copyCount: number;
   pasteCount: number;
   events: ExamEvent[];
+  /** SHA-256 hash of the combined input field content at heartbeat time */
+  inputContentHash?: string;
 }
 
 // ===== Paste Content Request =====
@@ -75,6 +77,29 @@ export interface PasteContentRequest {
   examId: string;
   timestamp: number;
   eventType?: "copy" | "paste";
+}
+
+// ===== Input Snapshot Types =====
+
+/** Request to store an input content snapshot (heartbeat-time capture) */
+export interface InputSnapshotRequest {
+  hash: string;
+  content: string;
+  length: number;
+  sessionId: string;
+  examId: string;
+  timestamp: number;
+}
+
+/** Stored input snapshot row */
+export interface StoredInputSnapshot {
+  hash: string;
+  sessionId: string;
+  content: string;
+  length: number;
+  timestamp: number;
+  examId: string;
+  createdAt?: string;
 }
 
 // ===== Clipboard Content Types =====
@@ -123,6 +148,7 @@ export interface StoredHeartbeat {
   copyCount: number;
   pasteCount: number;
   keyDownCount: number;
+  inputContentHash?: string | null;
   createdAt?: string;
 }
 

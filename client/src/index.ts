@@ -344,6 +344,27 @@ export function initialize(
     }
   }
 
+  /**
+   * Capture the combined content of all answer fields.
+   * Returns the concatenated text separated by newlines.
+   * Used at heartbeat time to create an input content snapshot.
+   */
+  function captureInputContent(): string {
+    const answerFields = doc
+      ? doc.querySelectorAll("textarea, [contenteditable='true']")
+      : [];
+    const parts: string[] = [];
+    for (const field of answerFields) {
+      const ta = field as HTMLTextAreaElement;
+      if (ta.value !== undefined) {
+        parts.push(ta.value);
+      } else if (ta.textContent !== null) {
+        parts.push(ta.textContent);
+      }
+    }
+    return parts.join("\n");
+  }
+
   function handleKeydown(e: KeyboardEvent): void {
     recordKey(keys, e);
   }
@@ -358,7 +379,11 @@ export function initialize(
       lastFocusTime = now;
     }
 
-    const payload = heartbeat.build();
+    // Capture current input content and hash it
+    const currentContent = captureInputContent();
+    const contentHash = currentContent.length > 0 ? await sha256(currentContent) : undefined;
+
+    const payload = heartbeat.build(contentHash);
 
     try {
       const result = await sender.sendHeartbeat(payload);
@@ -377,6 +402,18 @@ export function initialize(
         });
       }
       pendingClipboard.length = 0;
+
+      // Send input content snapshot if there was content
+      if (contentHash && currentContent.length > 0) {
+        await sender.sendInputSnapshot({
+          hash: contentHash,
+          content: currentContent,
+          length: currentContent.length,
+          sessionId,
+          examId,
+          timestamp: Date.now(),
+        });
+      }
 
       // Reset after successful send
       resetAccumulators(focus, input, keys);

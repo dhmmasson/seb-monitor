@@ -19,6 +19,7 @@ interface HeartbeatRow {
   deletedChars: number;
   copyCount: number;
   pasteCount: number;
+  inputContentHash: string | null;
 }
 
 interface EventRow {
@@ -30,6 +31,13 @@ interface EventRow {
 }
 
 interface PasteContentRow {
+  hash: string;
+  content: string;
+  length: number;
+  timestamp: number;
+}
+
+interface InputSnapshotRow {
   hash: string;
   content: string;
   length: number;
@@ -49,7 +57,8 @@ function getHeartbeats(db: DB, sessionId: string): HeartbeatRow[] {
   return queryAll(
     db,
     `SELECT timestamp, focused_time_ms, unfocused_time_ms, blur_count,
-            typed_chars, pasted_chars, deleted_chars, copy_count, paste_count
+            typed_chars, pasted_chars, deleted_chars, copy_count, paste_count,
+            input_content_hash
      FROM heartbeats WHERE session_id = ? ORDER BY timestamp`,
     [sessionId],
   ).map((r) => ({
@@ -62,6 +71,7 @@ function getHeartbeats(db: DB, sessionId: string): HeartbeatRow[] {
     deletedChars: r[6] as number,
     copyCount: r[7] as number,
     pasteCount: r[8] as number,
+    inputContentHash: r[9] as string | null,
   }));
 }
 
@@ -101,6 +111,28 @@ function getPasteContents(
   return map;
 }
 
+function getInputSnapshots(
+  db: DB,
+  sessionId: string,
+): Map<string, InputSnapshotRow> {
+  const map = new Map<string, InputSnapshotRow>();
+  for (
+    const r of queryAll(
+      db,
+      "SELECT hash, content, length, timestamp FROM input_snapshots WHERE session_id = ?",
+      [sessionId],
+    )
+  ) {
+    map.set(r[0] as string, {
+      hash: r[0] as string,
+      content: r[1] as string,
+      length: r[2] as number,
+      timestamp: r[3] as number,
+    });
+  }
+  return map;
+}
+
 /**
  * Render the student detail page.
  */
@@ -115,6 +147,7 @@ export function renderStudentDetail(
   const heartbeats = getHeartbeats(db, sessionId);
   const events = getEvents(db, sessionId);
   const pasteContents = getPasteContents(db, sessionId);
+  const inputSnapshots = getInputSnapshots(db, sessionId);
 
   const focusPct = Math.round(metrics.focusRatio * 100);
   const pastePct = Math.round(metrics.pasteRatio * 100);
@@ -143,7 +176,7 @@ export function renderStudentDetail(
     : '<p class="empty-state">No heartbeats recorded yet.</p>';
 
   // Events table (includes heartbeats interleaved by timestamp)
-  const eventsHtml = renderEventsTable(events, pasteContents, heartbeats, basePath);
+  const eventsHtml = renderEventsTable(events, pasteContents, inputSnapshots, heartbeats, basePath);
 
   const content = `
     <h1 style="margin-bottom: 0.5rem;">👤 ${escapeHtml(studentId)}</h1>
@@ -216,6 +249,7 @@ function renderChartSection(heartbeats: HeartbeatRow[]): string {
 function renderEventsTable(
   events: EventRow[],
   pasteContents: Map<string, PasteContentRow>,
+  inputSnapshots: Map<string, InputSnapshotRow>,
   heartbeats: HeartbeatRow[],
   basePath = "",
 ): string {
@@ -252,6 +286,7 @@ function renderEventsTable(
         <td>${hashCell}</td>
         <td>${lengthCell}</td>
         <td>${contentCell}</td>
+        <td></td>
       </tr>`,
     });
   }
@@ -260,6 +295,17 @@ function renderEventsTable(
   for (const h of heartbeats) {
     const total = h.focusedTimeMs + h.unfocusedTimeMs;
     const focusPct = total > 0 ? Math.round((h.focusedTimeMs / total) * 100) : 0;
+
+    let snapshotCell = "—";
+    if (h.inputContentHash && inputSnapshots.has(h.inputContentHash)) {
+      const snap = inputSnapshots.get(h.inputContentHash)!;
+      snapshotCell = `
+        <span class="paste-expand" onclick="this.nextElementSibling.classList.toggle('show')">📝 Show content (${snap.length} chars)</span>
+        <div class="paste-content">${escapeHtml(snap.content)}</div>`;
+    } else if (h.inputContentHash) {
+      snapshotCell = `<span style="color: #999;">${escapeHtml(h.inputContentHash.substring(0, 8))}…</span>`;
+    }
+
     timeline.push({
       timestamp: h.timestamp,
       html: `<tr>
@@ -268,6 +314,7 @@ function renderEventsTable(
         <td>—</td>
         <td>—</td>
         <td>Focus: ${focusPct}% · Typed: ${h.typedChars} chars</td>
+        <td>${snapshotCell}</td>
       </tr>`,
     });
   }
@@ -292,6 +339,7 @@ function renderEventsTable(
             <th>Hash</th>
             <th>Length</th>
             <th>Content</th>
+            <th>Snapshot</th>
           </tr>
         </thead>
         <tbody>

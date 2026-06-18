@@ -40,6 +40,7 @@ const MIGRATIONS = [
     ctrl_count      INTEGER NOT NULL DEFAULT 0,
     alt_count       INTEGER NOT NULL DEFAULT 0,
     shift_count     INTEGER NOT NULL DEFAULT 0,
+    input_content_hash TEXT,
     created_at      TEXT DEFAULT (datetime('now'))
   );`,
 
@@ -82,6 +83,21 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_paste_contents_session ON paste_contents(session_id);`,
   `CREATE INDEX IF NOT EXISTS idx_paste_contents_exam ON paste_contents(exam_id);`,
 
+  // Input content snapshots — one row per heartbeat, stores the combined
+  // answer field content at that point in time. Accessible behind dashboard auth.
+  `CREATE TABLE IF NOT EXISTS input_snapshots (
+    hash            TEXT NOT NULL,
+    session_id      TEXT NOT NULL,
+    content         TEXT NOT NULL,
+    length          INTEGER NOT NULL,
+    timestamp       INTEGER NOT NULL,
+    exam_id         TEXT NOT NULL,
+    created_at      TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (hash, session_id)
+  );`,
+
+  `CREATE INDEX IF NOT EXISTS idx_input_snapshots_session ON input_snapshots(session_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_input_snapshots_exam ON input_snapshots(exam_id);`,
 ];
 
 /**
@@ -104,6 +120,13 @@ export function runMigrations(db: DB): void {
   // Ensure the index exists (idempotent)
   db.execute(
     `CREATE INDEX IF NOT EXISTS idx_paste_contents_type ON paste_contents(event_type);`,
+  );
+  // Add input_content_hash to heartbeats if missing (for pre-existing DBs)
+  addColumnIfMissing(
+    db,
+    "heartbeats",
+    "input_content_hash",
+    "TEXT",
   );
 }
 
