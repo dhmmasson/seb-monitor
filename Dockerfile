@@ -12,9 +12,13 @@ WORKDIR /build
 
 # Copy client build files
 COPY client/deno.json client/deno.lock* ./client/
+COPY client/package.json ./client/
 COPY client/build.ts ./client/
 COPY client/src/ ./client/src/
 COPY shared/ ./shared/
+
+# Install client npm dependencies (fast-diff for esbuild bundling)
+RUN cd client && deno install
 
 # Build the client IIFE bundle
 RUN deno run -A client/build.ts
