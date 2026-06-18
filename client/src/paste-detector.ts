@@ -19,6 +19,9 @@
 
 import diff from "fast-diff";
 
+/** Diff tuple type constants from fast-diff */
+const INSERT = diff.INSERT;
+
 /** Answer field element interface (works with both textarea and contenteditable) */
 export interface AnswerField {
   value?: string;
@@ -88,13 +91,12 @@ export function extractPastedText(
   // Cleanup merges adjacent equalities and cleanly separates DELETE/INSERT
   // blocks, preventing character-level interleaving that would fragment
   // the pasted text across multiple INSERT tuples.
-  // Returns array of [type, text] tuples: -1=DELETE, 0=EQUAL, 1=INSERT
   const diffs = diff(before, after, undefined, true);
 
   // Extract only INSERT segments — these are the pasted text.
   // DELETE segments represent selected text being replaced, not pasted content.
   return diffs
-    .filter(([type]) => type === diff.INSERT)
+    .filter(([type]) => type === INSERT)
     .map(([, text]) => text)
     .join("");
 }
