@@ -1,3 +1,9 @@
+## v0.7.0 (2026-06-18)
+
+### Feat
+
+- capture and store input content hash at each heartbeat
+
 ## v0.6.0 (2026-06-18)
 
 ### Feat
