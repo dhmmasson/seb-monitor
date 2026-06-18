@@ -21,9 +21,19 @@ SEB intercepts Ctrl+V at the OS level and blocks the native `paste` DOM event. C
 3. Paste text into a textarea — check console for `[SEB Monitor]` paste events
 4. Test with SEB on Windows to confirm paste detection in the controlled environment
 
+## Diff engine
+
+Layer 1 uses [`fast-diff`](https://github.com/jhchen/fast-diff) (Myers O(ND) algorithm, ~3KB minified) with semantic cleanup to extract the pasted text from before/after content snapshots. Semantic cleanup ensures DELETE and INSERT segments are cleanly separated, preventing character-level interleaving that would fragment the pasted text.
+
+The diff correctly handles:
+- Append at cursor (most common)
+- Prepend at beginning
+- Insert in the middle of existing text
+- Paste over selected text (DELETE + INSERT in the diff)
+- Repeating text patterns (where simple substring matching fails)
+
 ## Known limitations
 
-- **Selection replacement**: When text is selected and Ctrl+V replaces it, the content diff may not extract the exact pasted text (it detects the change but may include surrounding content)
 - **Right-click paste**: Not detected by Layer 1 (no keyboard shortcut). Layer 2 (`beforeinput`) may catch it depending on the browser. Layer 3 (native `paste` event) catches it in non-SEB environments
 - **`beforeinput` support**: Not all browsers fire `beforeinput` with `insertFromPaste`. SEB's Chromium version may or may not support it — Layer 1 is the primary fallback
 
@@ -44,18 +54,19 @@ SEB intercepts Ctrl+V at the OS level and blocks the native `paste` DOM event. C
 
 | File | Purpose |
 |---|---|
-| `client/src/paste-detector.ts` | Multi-layer paste detection module |
-| `client/src/paste-detector_test.ts` | 21 unit tests |
+| `client/src/paste-detector.ts` | Multi-layer paste detection module (uses `fast-diff`) |
+| `client/src/paste-detector_test.ts` | 38 unit tests |
 | `client/src/index.ts` | Integration via `pasteDetectorFactory` parameter |
 
 ## Test coverage
 
-- `extractPastedText`: append, prepend, insert, empty, unchanged, multiline
+- `extractPastedText`: append, prepend, insert, empty, unchanged, multiline, paste-over-selection, middle insert with repeating text, emoji, multiline paste into middle, large paste replacing small selection
 - Keyboard paste: Ctrl+V, Cmd+V, no modifier, non-paste shortcuts
 - beforeinput: insertFromPaste, non-paste inputType, null data
 - Contenteditable support
 - Multiple textarea fields
 - start/stop event listener lifecycle
+- Deduplication across detection layers
 
 ## Relevant spec sections
 
