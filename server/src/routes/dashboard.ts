@@ -23,6 +23,21 @@ import { buildCsvTimeline } from "../services/csv-export.ts";
 const COOKIE_NAME = "seb_auth";
 
 /**
+ * Get the student ID for a session.
+ */
+function getStudentId(db: DB, sessionId: string): string {
+  const stmt = db.prepareQuery(
+    "SELECT student_id FROM sessions WHERE session_id = ?",
+  );
+  try {
+    const rows = [...stmt.all([sessionId])];
+    return (rows[0]?.[0] as string) ?? "Unknown";
+  } finally {
+    stmt.finalize();
+  }
+}
+
+/**
  * Check if a request has a valid auth cookie.
  */
 async function isAuthenticated(req: Request, secret: string): Promise<boolean> {
@@ -101,7 +116,8 @@ export function createDashboardHandler(
       );
       if (eIdCsv && sIdCsv) {
         const csvContent = buildCsvTimeline(db, sIdCsv);
-        const filename = `${sIdCsv}-events.csv`;
+        const studentId = getStudentId(db, sIdCsv);
+        const filename = `${studentId}-events.csv`;
         return csv(csvContent, filename);
       }
     }

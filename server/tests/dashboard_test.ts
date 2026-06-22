@@ -339,6 +339,16 @@ Deno.test("GET /dashboard/:examId/student/:sessionId/export.csv: returns CSV wit
   try {
     const session = findOrCreate(db, "Alice", "exam-1");
     insertHeartbeat(db, session.sessionId, makeHeartbeat({ timestamp: 1000 }));
+    const copy: PasteContentRequest = {
+      hash: "copy-hash",
+      content: "Copied text for CSV",
+      length: 19,
+      sessionId: session.sessionId,
+      examId: "exam-1",
+      timestamp: 2000,
+      eventType: "copy",
+    };
+    insertPasteContent(db, copy);
     insertEvents(db, session.sessionId, [
       { type: "copy", timestamp: 2000, hash: "copy-hash", length: 10 },
     ]);
@@ -356,7 +366,12 @@ Deno.test("GET /dashboard/:examId/student/:sessionId/export.csv: returns CSV wit
     assertStringIncludes(csv, "type,time,hash,length,focus,content");
     assertStringIncludes(csv, "heartbeat");
     assertStringIncludes(csv, "copy");
-    assertStringIncludes(csv, "(copy)");
+    assertStringIncludes(csv, "Copied text for CSV");
+    assertEquals(
+      resp.headers.get("content-disposition"),
+      'attachment; filename="Alice-events.csv"',
+      "filename should use student name",
+    );
   } finally {
     closeTestDb(db);
   }

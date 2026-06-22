@@ -83,10 +83,8 @@ export function buildCsvTimeline(db: DB, sessionId: string): string {
     const length = r[3] !== null && r[3] !== undefined ? String(r[3]) : "";
 
     let content = "";
-    if (type === "paste" && hash && pasteMap.has(hash)) {
+    if ((type === "paste" || type === "copy") && hash && pasteMap.has(hash)) {
       content = pasteMap.get(hash)!;
-    } else if (type === "copy") {
-      content = "(copy)";
     }
 
     entries.push({ type, timestamp, hash, length, focus: "", content });

@@ -93,10 +93,20 @@ Deno.test("buildCsvTimeline: includes heartbeat rows with focus % and snapshot c
   }
 });
 
-Deno.test("buildCsvTimeline: includes copy event with (copy) in content", () => {
+Deno.test("buildCsvTimeline: includes copy event with actual copied content", () => {
   const db = createTestDb();
   try {
     const session = findOrCreate(db, "Alice", "exam-1");
+    const copy: PasteContentRequest = {
+      hash: "copy-hash-aaa",
+      content: "Copied paragraph of text",
+      length: 23,
+      sessionId: session.sessionId,
+      examId: "exam-1",
+      timestamp: 1000,
+      eventType: "copy",
+    };
+    insertPasteContent(db, copy);
     insertEvents(db, session.sessionId, [
       { type: "copy", timestamp: 1000, hash: "copy-hash-aaa", length: 42 },
     ]);
@@ -105,7 +115,7 @@ Deno.test("buildCsvTimeline: includes copy event with (copy) in content", () => 
     assertStringIncludes(csv, "copy");
     assertStringIncludes(csv, "copy-hash-aaa");
     assertStringIncludes(csv, "42");
-    assertStringIncludes(csv, "(copy)");
+    assertStringIncludes(csv, "Copied paragraph of text");
   } finally {
     closeTestDb(db);
   }
