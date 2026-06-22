@@ -282,3 +282,25 @@ Deno.test("renderStudentDetail: shows hash prefix for heartbeats with missing sn
     closeTestDb(db);
   }
 });
+
+Deno.test("renderStudentDetail: includes CSV download button", () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "Alice", "exam-1");
+    insertHeartbeat(db, session.sessionId, makeHeartbeat());
+
+    const html = renderStudentDetail(db, "exam-1", session.sessionId);
+    assertEquals(
+      html.includes("Download CSV"),
+      true,
+      "should include download CSV button text",
+    );
+    assertEquals(
+      html.includes("export.csv"),
+      true,
+      "should link to export.csv endpoint",
+    );
+  } finally {
+    closeTestDb(db);
+  }
+});

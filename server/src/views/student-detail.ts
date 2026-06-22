@@ -183,6 +183,7 @@ export function renderStudentDetail(
     <p style="color: #666; margin-bottom: 1.5rem;">Session: ${
     escapeHtml(sessionId)
   }</p>
+    <p style="margin-bottom: 1.5rem;"><a href="${basePath}/dashboard/${escapeHtml(encodeExamId(examId))}/student/${escapeHtml(sessionId)}/export.csv" style="display: inline-block; padding: 0.4rem 0.8rem; background: #0d6efd; color: #fff; text-decoration: none; border-radius: 4px; font-size: 0.9rem;">📥 Download CSV</a></p>
     ${cardsHtml}
     <div class="card" style="margin-bottom: 1.5rem;">
       <h2 style="margin-bottom: 1rem;">📈 Activity Timeline</h2>
