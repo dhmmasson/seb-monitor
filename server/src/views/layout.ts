@@ -40,6 +40,8 @@ export function renderLayout(title: string, content: string, basePath = ""): str
     .paste-content { background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-top: 0.5rem; font-family: monospace; white-space: pre-wrap; display: none; }
     .paste-content.show { display: block; }
     .highlight-unmatched { background: #fff3cd; }
+    .sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    .sortable:hover { background: #e9ecef; }
   </style>
 </head>
 <body>
