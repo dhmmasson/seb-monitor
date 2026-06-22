@@ -14,6 +14,11 @@ interface CsvTimelineEntry {
   content: string;
 }
 
+interface SnapshotInfo {
+  content: string;
+  length: number;
+}
+
 /**
  * Escape a value for CSV output. Wraps in quotes if the value contains
  * a comma, quote, or newline. Doubles any internal quotes.
@@ -55,13 +60,16 @@ export function buildCsvTimeline(db: DB, sessionId: string): string {
   }
 
   // Query input snapshots into a map
-  const snapshotMap = new Map<string, string>();
+  const snapshotMap = new Map<string, SnapshotInfo>();
   for (const r of queryAll(
     db,
-    "SELECT hash, content FROM input_snapshots WHERE session_id = ?",
+    "SELECT hash, content, length FROM input_snapshots WHERE session_id = ?",
     [sessionId],
   )) {
-    snapshotMap.set(r[0] as string, r[1] as string);
+    snapshotMap.set(r[0] as string, {
+      content: r[1] as string,
+      length: r[2] as number,
+    });
   }
 
   // Build unified timeline
@@ -97,8 +105,9 @@ export function buildCsvTimeline(db: DB, sessionId: string): string {
     let content = "";
     let length = "";
     if (inputHash && snapshotMap.has(inputHash)) {
-      content = snapshotMap.get(inputHash)!;
-      length = String(new TextEncoder().encode(content).length);
+      const snap = snapshotMap.get(inputHash)!;
+      content = snap.content;
+      length = String(snap.length);
     }
 
     entries.push({
