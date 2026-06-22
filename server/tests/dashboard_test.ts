@@ -2,15 +2,17 @@
  * Tests for auth routes and dashboard routes with cookie-based authentication.
  * RED phase: these tests should fail until implementation exists.
  */
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { createDashboardHandler } from "../src/routes/dashboard.ts";
 import { createAuthHandler } from "../src/routes/auth.ts";
 import { closeTestDb, createTestDb } from "./helpers.ts";
 import { hashPassword } from "../src/services/auth.ts";
 import { findOrCreate } from "../src/db/sessions.ts";
 import { insertHeartbeat } from "../src/db/heartbeats.ts";
+import { insertEvents } from "../src/db/events.ts";
+import { insertPasteContent } from "../src/db/paste_contents.ts";
 import { encodeExamId } from "../src/routes/url-ids.ts";
-import type { HeartbeatPayload } from "../../shared/types.ts";
+import type { HeartbeatPayload, PasteContentRequest } from "../../shared/types.ts";
 
 function makeHeartbeat(
   overrides: Partial<HeartbeatPayload> = {},
@@ -283,6 +285,112 @@ Deno.test("POST /auth/login: redirects to basePath/dashboard on success when bas
       true,
       "cookie Path should include base path",
     );
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+// ===== CSV Export Route =====
+
+Deno.test("GET /dashboard/:examId/student/:sessionId/export.csv: returns CSV with text/csv content type", async () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "Alice", "exam-1");
+    insertHeartbeat(db, session.sessionId, makeHeartbeat({ timestamp: 1000 }));
+
+    const app = createDashboardHandler(db, TEST_SECRET);
+    const { signCookie } = await import("../src/services/auth.ts");
+    const authCookie = await signCookie("authenticated", TEST_SECRET);
+
+    const resp = await sendRequest(
+      app,
+      `/dashboard/exam-1/student/${session.sessionId}/export.csv`,
+      { headers: { cookie: `seb_auth=${authCookie}` } },
+    );
+    assertEquals(resp.status, 200);
+    assertEquals(
+      resp.headers.get("content-type"),
+      "text/csv; charset=utf-8",
+      "should return CSV content type",
+    );
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("GET /dashboard/:examId/student/:sessionId/export.csv: redirects to login when not authenticated", async () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "Alice", "exam-1");
+    const app = createDashboardHandler(db, TEST_SECRET);
+    const resp = await sendRequest(
+      app,
+      `/dashboard/exam-1/student/${session.sessionId}/export.csv`,
+    );
+    assertEquals(resp.status, 302, "should redirect");
+    assertEquals(resp.headers.get("location"), "/auth/login");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("GET /dashboard/:examId/student/:sessionId/export.csv: returns CSV with header and data rows", async () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "Alice", "exam-1");
+    insertHeartbeat(db, session.sessionId, makeHeartbeat({ timestamp: 1000 }));
+    insertEvents(db, session.sessionId, [
+      { type: "copy", timestamp: 2000, hash: "copy-hash", length: 10 },
+    ]);
+
+    const app = createDashboardHandler(db, TEST_SECRET);
+    const { signCookie } = await import("../src/services/auth.ts");
+    const authCookie = await signCookie("authenticated", TEST_SECRET);
+
+    const resp = await sendRequest(
+      app,
+      `/dashboard/exam-1/student/${session.sessionId}/export.csv`,
+      { headers: { cookie: `seb_auth=${authCookie}` } },
+    );
+    const csv = await resp.text();
+    assertStringIncludes(csv, "type,time,hash,length,focus,content");
+    assertStringIncludes(csv, "heartbeat");
+    assertStringIncludes(csv, "copy");
+    assertStringIncludes(csv, "(copy)");
+  } finally {
+    closeTestDb(db);
+  }
+});
+
+Deno.test("GET /dashboard/:examId/student/:sessionId/export.csv: includes paste content in CSV", async () => {
+  const db = createTestDb();
+  try {
+    const session = findOrCreate(db, "Alice", "exam-1");
+    const paste: PasteContentRequest = {
+      hash: "paste-hash",
+      content: "Pasted text for CSV",
+      length: 19,
+      sessionId: session.sessionId,
+      examId: "exam-1",
+      timestamp: 2000,
+    };
+    insertPasteContent(db, paste);
+    insertEvents(db, session.sessionId, [
+      { type: "paste", timestamp: 2000, hash: "paste-hash", length: 19, matchedCopyHash: null },
+    ]);
+
+    const app = createDashboardHandler(db, TEST_SECRET);
+    const { signCookie } = await import("../src/services/auth.ts");
+    const authCookie = await signCookie("authenticated", TEST_SECRET);
+
+    const resp = await sendRequest(
+      app,
+      `/dashboard/exam-1/student/${session.sessionId}/export.csv`,
+      { headers: { cookie: `seb_auth=${authCookie}` } },
+    );
+    const csv = await resp.text();
+    assertStringIncludes(csv, "Pasted text for CSV");
+    assertStringIncludes(csv, "paste");
   } finally {
     closeTestDb(db);
   }
