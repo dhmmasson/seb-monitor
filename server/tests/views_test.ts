@@ -186,9 +186,9 @@ Deno.test("renderExamList: escapes HTML in student names to prevent XSS", () => 
   ];
   const html = renderExamList("exam-1", students);
   assertEquals(
-    html.includes("<script>"),
+    html.includes('data-sort="<script>'),
     false,
-    "raw <script> tag must not appear in output",
+    "raw <script> tag must not appear in data-sort attribute",
   );
   assertEquals(
     html.includes("&lt;script&gt;"),
@@ -218,4 +218,92 @@ Deno.test("renderExamList: escapes HTML in exam ID heading", () => {
     true,
     "h1 heading should escape HTML in exam ID",
   );
+});
+
+// ===== Sortable Table Tests =====
+
+Deno.test("renderExamList: sortable headers have data-sort-key attributes", () => {
+  const students: ExamSummaryEntry[] = [
+    {
+      sessionId: "s1",
+      studentId: "Alice",
+      focusRatio: 0.95,
+      pasteRatio: 0.1,
+      totalCopyCount: 2,
+      totalPasteCount: 1,
+      unmatchedPasteCount: 0,
+      largestPasteLength: 50,
+      largestPasteHash: "aaa",
+    },
+  ];
+  const html = renderExamList("exam-1", students);
+  assertExists(html, "should return HTML");
+  assertEquals(html.includes('data-sort-key="name"'), true, "should have name sort key");
+  assertEquals(html.includes('data-sort-key="focus"'), true, "should have focus sort key");
+  assertEquals(html.includes('data-sort-key="paste"'), true, "should have paste sort key");
+  assertEquals(html.includes('data-sort-key="copies"'), true, "should have copies sort key");
+  assertEquals(html.includes('data-sort-key="pastes"'), true, "should have pastes sort key");
+  assertEquals(html.includes('data-sort-key="unmatched"'), true, "should have unmatched sort key");
+  assertEquals(html.includes('data-sort-key="largestPaste"'), true, "should have largestPaste sort key");
+});
+
+Deno.test("renderExamList: sortable headers have sortable class", () => {
+  const students: ExamSummaryEntry[] = [
+    {
+      sessionId: "s1",
+      studentId: "Alice",
+      focusRatio: 0.9,
+      pasteRatio: 0.0,
+      totalCopyCount: 0,
+      totalPasteCount: 0,
+      unmatchedPasteCount: 0,
+      largestPasteLength: 0,
+      largestPasteHash: "",
+    },
+  ];
+  const html = renderExamList("exam-1", students);
+  assertEquals(html.includes("sortable"), true, "should have sortable class on headers");
+});
+
+Deno.test("renderExamList: student rows have data-sort attributes", () => {
+  const students: ExamSummaryEntry[] = [
+    {
+      sessionId: "s1",
+      studentId: "Alice",
+      focusRatio: 0.95,
+      pasteRatio: 0.1,
+      totalCopyCount: 2,
+      totalPasteCount: 1,
+      unmatchedPasteCount: 0,
+      largestPasteLength: 50,
+      largestPasteHash: "aaa",
+    },
+  ];
+  const html = renderExamList("exam-1", students);
+  assertEquals(html.includes('data-sort="Alice"'), true, "should have name data-sort");
+  assertEquals(html.includes('data-sort="95"'), true, "should have focus data-sort as percentage");
+  assertEquals(html.includes('data-sort="10"'), true, "should have paste data-sort as percentage");
+  assertEquals(html.includes('data-sort="2"'), true, "should have copies data-sort");
+  assertEquals(html.includes('data-sort="1"'), true, "should have pastes data-sort");
+  assertEquals(html.includes('data-sort="0"'), true, "should have unmatched data-sort");
+  assertEquals(html.includes('data-sort="50"'), true, "should have largestPaste data-sort");
+});
+
+Deno.test("renderExamList: includes inline sort script", () => {
+  const students: ExamSummaryEntry[] = [
+    {
+      sessionId: "s1",
+      studentId: "Alice",
+      focusRatio: 0.9,
+      pasteRatio: 0.0,
+      totalCopyCount: 0,
+      totalPasteCount: 0,
+      unmatchedPasteCount: 0,
+      largestPasteLength: 0,
+      largestPasteHash: "",
+    },
+  ];
+  const html = renderExamList("exam-1", students);
+  assertEquals(html.includes("<script>"), true, "should include inline script");
+  assertEquals(html.includes("sortTable"), true, "should include sortTable function");
 });
