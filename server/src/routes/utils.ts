@@ -17,6 +17,17 @@ export function html(content: string, status = 200): Response {
   });
 }
 
+/** Create a CSV response with Content-Disposition for download. */
+export function csv(content: string, filename: string): Response {
+  return new Response(content, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}
+
 /** Create a JSON response (no CORS). */
 export function json(
   data: unknown,

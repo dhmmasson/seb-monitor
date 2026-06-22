@@ -15,9 +15,10 @@ import { renderStudentDetail } from "../views/student-detail.ts";
 import { renderExamIndex } from "../views/exam-index.ts";
 import { renderHashList } from "../views/hash-list.ts";
 import { renderHashDetail } from "../views/hash-detail.ts";
-import { html, redirect, extractParam } from "./utils.ts";
+import { html, redirect, extractParam, csv } from "./utils.ts";
 import { decodeExamId } from "./url-ids.ts";
 import { getHashUsageStats, getAllClipboardContent } from "../db/paste_contents.ts";
+import { buildCsvTimeline } from "../services/csv-export.ts";
 
 const COOKIE_NAME = "seb_auth";
 
@@ -84,6 +85,25 @@ export function createDashboardHandler(
       const decodedExamId = decodeExamId(examId);
       const students = computeExamSummary(db, decodedExamId);
       return html(renderExamList(decodedExamId, students, basePath));
+    }
+
+    // GET /dashboard/:examId/student/:sessionId/export.csv — CSV download
+    if (path.endsWith("/export.csv")) {
+      const eIdCsv = extractParam(
+        path,
+        "/dashboard/:examId/student/:sessionId/export.csv",
+        "examId",
+      );
+      const sIdCsv = extractParam(
+        path,
+        "/dashboard/:examId/student/:sessionId/export.csv",
+        "sessionId",
+      );
+      if (eIdCsv && sIdCsv) {
+        const csvContent = buildCsvTimeline(db, sIdCsv);
+        const filename = `${sIdCsv}-events.csv`;
+        return csv(csvContent, filename);
+      }
     }
 
     // GET /dashboard/:examId/student/:sessionId — student detail
